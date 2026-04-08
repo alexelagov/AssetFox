@@ -1,0 +1,481 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 60;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		A001 /* Sources/MediaToolkitApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = F001 /* Sources/MediaToolkitApp.swift */; };
+		A002 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = F002 /* Models.swift */; };
+		A003 /* AppViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F003 /* AppViewModel.swift */; };
+		A004 /* FileScanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = F004 /* FileScanner.swift */; };
+		A005 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F005 /* ContentView.swift */; };
+		A006 /* DropZoneView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F006 /* DropZoneView.swift */; };
+		A007 /* ScanProgressView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F007 /* ScanProgressView.swift */; };
+		A008 /* ResultsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F008 /* ResultsView.swift */; };
+		A009 /* OtherViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = F009 /* OtherViews.swift */; };
+		A010 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = F010 /* Assets.xcassets */; };
+		A011 /* MediaToolkitRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F012 /* MediaToolkitRootView.swift */; };
+		A012 /* CollectMediaView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F013 /* CollectMediaView.swift */; };
+		A013 /* CollectMediaContracts.swift in Sources */ = {isa = PBXBuildFile; fileRef = F014 /* CollectMediaContracts.swift */; };
+		A014 /* CollectMediaViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F015 /* CollectMediaViewModel.swift */; };
+		A015 /* CollectMediaSummaryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F016 /* CollectMediaSummaryView.swift */; };
+		A016 /* CollectMediaService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F017 /* CollectMediaService.swift */; };
+		A017 /* CollectMediaXMLParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = F018 /* CollectMediaXMLParser.swift */; };
+		A018 /* CollectMediaCollector.swift in Sources */ = {isa = PBXBuildFile; fileRef = F019 /* CollectMediaCollector.swift */; };
+		A019 /* CollectMediaRelinker.swift in Sources */ = {isa = PBXBuildFile; fileRef = F020 /* CollectMediaRelinker.swift */; };
+		A020 /* CollectMediaSequenceDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = F021 /* CollectMediaSequenceDetector.swift */; };
+		A021 /* FFProbeAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = F022 /* FFProbeAdapter.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		F001 /* Sources/MediaToolkitApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/MediaToolkitApp.swift; sourceTree = "<group>"; };
+		F002 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
+		F003 /* AppViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppViewModel.swift; sourceTree = "<group>"; };
+		F004 /* FileScanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileScanner.swift; sourceTree = "<group>"; };
+		F005 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		F006 /* DropZoneView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DropZoneView.swift; sourceTree = "<group>"; };
+		F007 /* ScanProgressView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanProgressView.swift; sourceTree = "<group>"; };
+		F008 /* ResultsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResultsView.swift; sourceTree = "<group>"; };
+		F009 /* OtherViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OtherViews.swift; sourceTree = "<group>"; };
+		F010 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		F011 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		F012 /* MediaToolkitRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaToolkitRootView.swift; sourceTree = "<group>"; };
+		F013 /* CollectMediaView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CollectMediaView.swift; sourceTree = "<group>"; };
+		F014 /* CollectMediaContracts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CollectMediaContracts.swift; sourceTree = "<group>"; };
+		F015 /* CollectMediaViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CollectMediaViewModel.swift; sourceTree = "<group>"; };
+		F016 /* CollectMediaSummaryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CollectMediaSummaryView.swift; sourceTree = "<group>"; };
+		F017 /* CollectMediaService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CollectMediaService.swift; sourceTree = "<group>"; };
+		F018 /* CollectMediaXMLParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CollectMediaXMLParser.swift; sourceTree = "<group>"; };
+		F019 /* CollectMediaCollector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CollectMediaCollector.swift; sourceTree = "<group>"; };
+		F020 /* CollectMediaRelinker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CollectMediaRelinker.swift; sourceTree = "<group>"; };
+		F021 /* CollectMediaSequenceDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CollectMediaSequenceDetector.swift; sourceTree = "<group>"; };
+		F022 /* FFProbeAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FFProbeAdapter.swift; sourceTree = "<group>"; };
+		FAPP /* MediaToolkit.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MediaToolkit.app; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		B003 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		GRP_APP /* MediaToolkit */ = {
+			isa = PBXGroup;
+			children = (
+				F001 /* Sources/MediaToolkitApp.swift */,
+				GRP_ROOT /* Sources/Root */,
+				GRP_MODELS /* Sources/Models */,
+				GRP_VIEWS /* Sources/Views */,
+				GRP_SERVICES /* Sources/Services */,
+				GRP_COLLECT_MEDIA /* Sources/CollectMedia */,
+				F010 /* Assets.xcassets */,
+				F011 /* Info.plist */,
+			);
+			path = MediaToolkit;
+			sourceTree = "<group>";
+		};
+		GRP_COLLECT_MEDIA /* Sources/CollectMedia */ = {
+			isa = PBXGroup;
+			children = (
+				GRP_COLLECT_MEDIA_MODELS /* Models */,
+				GRP_COLLECT_MEDIA_SERVICES /* Services */,
+				GRP_COLLECT_MEDIA_VIEWMODELS /* ViewModels */,
+				GRP_COLLECT_MEDIA_VIEWS /* Views */,
+			);
+			path = Sources/CollectMedia;
+			sourceTree = "<group>";
+		};
+		GRP_COLLECT_MEDIA_MODELS /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				F014 /* CollectMediaContracts.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		GRP_COLLECT_MEDIA_SERVICES /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				F017 /* CollectMediaService.swift */,
+				F018 /* CollectMediaXMLParser.swift */,
+				F019 /* CollectMediaCollector.swift */,
+				F020 /* CollectMediaRelinker.swift */,
+				F021 /* CollectMediaSequenceDetector.swift */,
+				F022 /* FFProbeAdapter.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		GRP_COLLECT_MEDIA_VIEWMODELS /* ViewModels */ = {
+			isa = PBXGroup;
+			children = (
+				F015 /* CollectMediaViewModel.swift */,
+			);
+			path = ViewModels;
+			sourceTree = "<group>";
+		};
+		GRP_COLLECT_MEDIA_VIEWS /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				F013 /* CollectMediaView.swift */,
+				F016 /* CollectMediaSummaryView.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		GRP_MODELS /* Sources/Models */ = {
+			isa = PBXGroup;
+			children = (
+				F002 /* Models.swift */,
+				F003 /* AppViewModel.swift */,
+			);
+			path = Sources/Models;
+			sourceTree = "<group>";
+		};
+		GRP_PROD /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				FAPP /* MediaToolkit.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		GRP_ROOT /* Sources/Root */ = {
+			isa = PBXGroup;
+			children = (
+				F012 /* MediaToolkitRootView.swift */,
+			);
+			path = Sources/Root;
+			sourceTree = "<group>";
+		};
+		GRP_SERVICES /* Sources/Services */ = {
+			isa = PBXGroup;
+			children = (
+				F004 /* FileScanner.swift */,
+			);
+			path = Sources/Services;
+			sourceTree = "<group>";
+		};
+		GRP_VIEWS /* Sources/Views */ = {
+			isa = PBXGroup;
+			children = (
+				F005 /* ContentView.swift */,
+				F006 /* DropZoneView.swift */,
+				F007 /* ScanProgressView.swift */,
+				F008 /* ResultsView.swift */,
+				F009 /* OtherViews.swift */,
+			);
+			path = Sources/Views;
+			sourceTree = "<group>";
+		};
+		ROOT = {
+			isa = PBXGroup;
+			children = (
+				GRP_APP /* MediaToolkit */,
+				GRP_PROD /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		TGT /* MediaToolkit */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = CFGLIST_TGT /* Build configuration list for PBXNativeTarget "MediaToolkit" */;
+			buildPhases = (
+				B001 /* Sources */,
+				B002 /* Resources */,
+				B003 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = MediaToolkit;
+			productName = MediaToolkit;
+			productReference = FAPP /* MediaToolkit.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		PROJ /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1600;
+				LastUpgradeCheck = 2640;
+				TargetAttributes = {
+					TGT = {
+						CreatedOnToolsVersion = 16.0;
+					};
+				};
+			};
+			buildConfigurationList = CFGLIST_PROJ /* Build configuration list for PBXProject "MediaToolkit" */;
+			compatibilityVersion = "Xcode 15.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = ROOT;
+			productRefGroup = GRP_PROD /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				TGT /* MediaToolkit */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		B002 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A010 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		B001 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A001 /* Sources/MediaToolkitApp.swift in Sources */,
+				A011 /* MediaToolkitRootView.swift in Sources */,
+				A002 /* Models.swift in Sources */,
+				A003 /* AppViewModel.swift in Sources */,
+				A013 /* CollectMediaContracts.swift in Sources */,
+				A004 /* FileScanner.swift in Sources */,
+				A005 /* ContentView.swift in Sources */,
+				A012 /* CollectMediaView.swift in Sources */,
+				A015 /* CollectMediaSummaryView.swift in Sources */,
+				A014 /* CollectMediaViewModel.swift in Sources */,
+				A016 /* CollectMediaService.swift in Sources */,
+				A017 /* CollectMediaXMLParser.swift in Sources */,
+				A018 /* CollectMediaCollector.swift in Sources */,
+				A019 /* CollectMediaRelinker.swift in Sources */,
+				A020 /* CollectMediaSequenceDetector.swift in Sources */,
+				A021 /* FFProbeAdapter.swift in Sources */,
+				A006 /* DropZoneView.swift in Sources */,
+				A007 /* ScanProgressView.swift in Sources */,
+				A008 /* ResultsView.swift in Sources */,
+				A009 /* OtherViews.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		CFG_PROJ_DEBUG /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		CFG_PROJ_RELEASE /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+			};
+			name = Release;
+		};
+		CFG_TGT_DEBUG /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = "";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = MediaToolkit/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.postprod.mediatoolkit;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		CFG_TGT_RELEASE /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = "";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = MediaToolkit/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.postprod.mediatoolkit;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		CFGLIST_PROJ /* Build configuration list for PBXProject "MediaToolkit" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				CFG_PROJ_DEBUG /* Debug */,
+				CFG_PROJ_RELEASE /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		CFGLIST_TGT /* Build configuration list for PBXNativeTarget "MediaToolkit" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				CFG_TGT_DEBUG /* Debug */,
+				CFG_TGT_RELEASE /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = PROJ /* Project object */;
+}
