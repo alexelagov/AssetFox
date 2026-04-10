@@ -174,6 +174,8 @@ struct IngestReportWriter {
         switch state {
         case .verified:
             return "verified"
+        case .copiedWithoutVerification:
+            return "copied_unverified"
         case .mismatch:
             return "mismatch"
         case .failed:
@@ -185,7 +187,7 @@ struct IngestReportWriter {
 
     private func reportDetail(for state: IngestFileVerificationState) -> String? {
         switch state {
-        case .verified, .mismatch, .skippedExisting:
+        case .verified, .copiedWithoutVerification, .mismatch, .skippedExisting:
             return nil
         case .failed(let reason):
             return reason

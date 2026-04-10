@@ -17,6 +17,7 @@ enum IngestRunPhase {
 
 enum IngestFileVerificationState {
     case verified
+    case copiedWithoutVerification
     case mismatch
     case failed(reason: String)
     case skippedExisting
@@ -100,6 +101,8 @@ struct IngestCopier {
         sourceURL: URL,
         destinationURL: URL,
         conflictMode: IngestConflictMode,
+        verificationEnabled: Bool,
+        preserveFolderStructure: Bool,
         progress: @escaping @Sendable (IngestCopyProgress) async -> Void
     ) async throws -> IngestCopyResult {
         try await Task.detached(priority: .userInitiated) {
@@ -107,6 +110,8 @@ struct IngestCopier {
                 sourceURL: sourceURL,
                 destinationURL: destinationURL,
                 conflictMode: conflictMode,
+                verificationEnabled: verificationEnabled,
+                preserveFolderStructure: preserveFolderStructure,
                 progress: progress
             )
         }.value
@@ -116,11 +121,17 @@ struct IngestCopier {
         sourceURL: URL,
         destinationURL: URL,
         conflictMode: IngestConflictMode,
+        verificationEnabled: Bool,
+        preserveFolderStructure: Bool,
         progress: @escaping @Sendable (IngestCopyProgress) async -> Void
     ) async throws -> IngestCopyResult {
         let fileManager = FileManager.default
         let startedAt = Date()
-        let preparation = try buildCopyJobs(sourceURL: sourceURL, destinationURL: destinationURL)
+        let preparation = try buildCopyJobs(
+            sourceURL: sourceURL,
+            destinationURL: destinationURL,
+            preserveFolderStructure: preserveFolderStructure
+        )
         let jobs = preparation.jobs
 
         let totalFiles = jobs.count
@@ -169,39 +180,130 @@ struct IngestCopier {
 
                 let destinationExists = fileManager.fileExists(atPath: job.destinationURL.path)
                 if destinationExists {
-                    switch conflictMode {
-                    case .skipExisting:
-                        skippedFiles += 1
-                        let record = IngestFileVerificationRecord(
-                            relativePath: job.relativePath,
-                            sourcePath: job.sourceURL.path,
-                            destinationPath: job.destinationURL.path,
-                            fileSize: job.size,
-                            state: .skippedExisting
-                        )
-                        verificationRecords.append(record)
-                        warnings.append("Skipped existing destination file: \(job.relativePath)")
-                        await progress(buildProgress(
-                            copiedFiles: copiedFiles,
-                            totalFiles: totalFiles,
-                            copiedBytes: copiedBytes,
-                            totalBytes: totalBytes,
-                            verifiedFiles: verifiedFiles,
-                            mismatchCount: mismatchCount,
-                            verificationFailureCount: verificationFailureCount,
-                            currentFilePath: job.relativePath,
-                            phase: .copying,
-                            detail: "Skipped existing file",
-                            latestRecord: record,
-                            warnings: warnings,
-                            errors: errors
-                        ))
-                        continue
-                    case .overwriteExisting:
-                        do {
-                            try fileManager.removeItem(at: job.destinationURL)
-                        } catch {
-                            throw IngestFatalJobError.destinationUnavailable("Could not overwrite existing destination file for \(job.relativePath): \(error.localizedDescription)")
+                    await progress(buildProgress(
+                        copiedFiles: copiedFiles,
+                        totalFiles: totalFiles,
+                        copiedBytes: copiedBytes,
+                        totalBytes: totalBytes,
+                        verifiedFiles: verifiedFiles,
+                        mismatchCount: mismatchCount,
+                        verificationFailureCount: verificationFailureCount,
+                        currentFilePath: job.relativePath,
+                        phase: .copying,
+                        detail: "Comparing existing destination file",
+                        latestRecord: nil,
+                        warnings: warnings,
+                        errors: errors
+                    ))
+
+                    do {
+                        let sourceHash = try sha256Hex(for: job.sourceURL)
+                        let destinationHash = try sha256Hex(for: job.destinationURL)
+
+                        if sourceHash == destinationHash {
+                            skippedFiles += 1
+                            let record = IngestFileVerificationRecord(
+                                relativePath: job.relativePath,
+                                sourcePath: job.sourceURL.path,
+                                destinationPath: job.destinationURL.path,
+                                fileSize: job.size,
+                                state: .skippedExisting
+                            )
+                            verificationRecords.append(record)
+                            warnings.append("Skipped existing destination file after checksum match: \(job.relativePath)")
+                            await progress(buildProgress(
+                                copiedFiles: copiedFiles,
+                                totalFiles: totalFiles,
+                                copiedBytes: copiedBytes,
+                                totalBytes: totalBytes,
+                                verifiedFiles: verifiedFiles,
+                                mismatchCount: mismatchCount,
+                                verificationFailureCount: verificationFailureCount,
+                                currentFilePath: job.relativePath,
+                                phase: .copying,
+                                detail: "Existing file already matches source",
+                                latestRecord: record,
+                                warnings: warnings,
+                                errors: errors
+                            ))
+                            continue
+                        }
+
+                        switch conflictMode {
+                        case .skipExisting:
+                            let message = "Destination file differs from source checksum and was not overwritten: \(job.relativePath)"
+                            let record = IngestFileVerificationRecord(
+                                relativePath: job.relativePath,
+                                sourcePath: job.sourceURL.path,
+                                destinationPath: job.destinationURL.path,
+                                fileSize: job.size,
+                                state: .failed(reason: message)
+                            )
+                            verificationRecords.append(record)
+                            verificationFailureCount += 1
+                            warnings.append(message)
+                            await progress(buildProgress(
+                                copiedFiles: copiedFiles,
+                                totalFiles: totalFiles,
+                                copiedBytes: copiedBytes,
+                                totalBytes: totalBytes,
+                                verifiedFiles: verifiedFiles,
+                                mismatchCount: mismatchCount,
+                                verificationFailureCount: verificationFailureCount,
+                                currentFilePath: job.relativePath,
+                                phase: .copying,
+                                detail: message,
+                                latestRecord: record,
+                                warnings: warnings,
+                                errors: errors
+                            ))
+                            continue
+                        case .overwriteExisting:
+                            warnings.append("Replacing destination file after checksum mismatch: \(job.relativePath)")
+                            do {
+                                try fileManager.removeItem(at: job.destinationURL)
+                            } catch {
+                                throw IngestFatalJobError.destinationUnavailable("Could not overwrite existing destination file for \(job.relativePath): \(error.localizedDescription)")
+                            }
+                        }
+                    } catch {
+                        let message = "Could not compare existing destination file for \(job.relativePath): \(error.localizedDescription)"
+
+                        switch conflictMode {
+                        case .skipExisting:
+                            let record = IngestFileVerificationRecord(
+                                relativePath: job.relativePath,
+                                sourcePath: job.sourceURL.path,
+                                destinationPath: job.destinationURL.path,
+                                fileSize: job.size,
+                                state: .failed(reason: message)
+                            )
+                            verificationRecords.append(record)
+                            verificationFailureCount += 1
+                            errors.append(message)
+                            await progress(buildProgress(
+                                copiedFiles: copiedFiles,
+                                totalFiles: totalFiles,
+                                copiedBytes: copiedBytes,
+                                totalBytes: totalBytes,
+                                verifiedFiles: verifiedFiles,
+                                mismatchCount: mismatchCount,
+                                verificationFailureCount: verificationFailureCount,
+                                currentFilePath: job.relativePath,
+                                phase: .copying,
+                                detail: message,
+                                latestRecord: record,
+                                warnings: warnings,
+                                errors: errors
+                            ))
+                            continue
+                        case .overwriteExisting:
+                            warnings.append(message)
+                            do {
+                                try fileManager.removeItem(at: job.destinationURL)
+                            } catch {
+                                throw IngestFatalJobError.destinationUnavailable("Could not overwrite existing destination file for \(job.relativePath): \(error.localizedDescription)")
+                            }
                         }
                     }
                 }
@@ -268,6 +370,34 @@ struct IngestCopier {
                     continue
                 }
 
+                guard verificationEnabled else {
+                    let record = IngestFileVerificationRecord(
+                        relativePath: job.relativePath,
+                        sourcePath: job.sourceURL.path,
+                        destinationPath: job.destinationURL.path,
+                        fileSize: job.size,
+                        state: .copiedWithoutVerification
+                    )
+                    verificationRecords.append(record)
+
+                    await progress(buildProgress(
+                        copiedFiles: copiedFiles,
+                        totalFiles: totalFiles,
+                        copiedBytes: copiedBytes,
+                        totalBytes: totalBytes,
+                        verifiedFiles: verifiedFiles,
+                        mismatchCount: mismatchCount,
+                        verificationFailureCount: verificationFailureCount,
+                        currentFilePath: job.relativePath,
+                        phase: .copying,
+                        detail: "Copied without post-copy verification",
+                        latestRecord: record,
+                        warnings: warnings,
+                        errors: errors
+                    ))
+                    continue
+                }
+
                 await progress(buildProgress(
                     copiedFiles: copiedFiles,
                     totalFiles: totalFiles,
@@ -326,6 +456,8 @@ struct IngestCopier {
                             switch record.state {
                             case .verified:
                                 return "Verification passed"
+                            case .copiedWithoutVerification:
+                                return "Copied without post-copy verification"
                             case .mismatch, .failed, .skippedExisting:
                                 return "Verification issue detected"
                             }
@@ -406,7 +538,11 @@ struct IngestCopier {
         )
     }
 
-    private func buildCopyJobs(sourceURL: URL, destinationURL: URL) throws -> IngestCopyPreparation {
+    private func buildCopyJobs(
+        sourceURL: URL,
+        destinationURL: URL,
+        preserveFolderStructure: Bool
+    ) throws -> IngestCopyPreparation {
         let fileManager = FileManager.default
         let resourceKeys: Set<URLResourceKey> = [
             .isRegularFileKey,
@@ -439,12 +575,22 @@ struct IngestCopier {
 
         var jobs: [IngestCopyJob] = []
         let sourcePath = sourceURL.standardizedFileURL.path
+        var reservedDestinationPaths = Set<String>()
 
         for case let fileURL as URL in enumerator {
             try Task.checkCancellation()
 
             let relativePath = relativePath(for: fileURL, under: sourcePath)
-            let destinationFileURL = destinationURL.appendingPathComponent(relativePath)
+            let destinationFileURL: URL
+            if preserveFolderStructure {
+                destinationFileURL = destinationURL.appendingPathComponent(relativePath)
+            } else {
+                destinationFileURL = uniqueFlatDestinationURL(
+                    for: fileURL,
+                    destinationRootURL: destinationURL,
+                    reservedDestinationPaths: &reservedDestinationPaths
+                )
+            }
 
             let values: URLResourceValues
             do {
@@ -488,6 +634,8 @@ struct IngestCopier {
                 relativePath: relativePath,
                 size: Int64(size)
             ))
+
+            reservedDestinationPaths.insert(destinationFileURL.standardizedFileURL.path)
         }
 
         return IngestCopyPreparation(
@@ -508,6 +656,34 @@ struct IngestCopier {
         let startIndex = fullPath.index(fullPath.startIndex, offsetBy: sourcePath.count)
         let suffix = String(fullPath[startIndex...])
         return suffix.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+    }
+
+    private func uniqueFlatDestinationURL(
+        for fileURL: URL,
+        destinationRootURL: URL,
+        reservedDestinationPaths: inout Set<String>
+    ) -> URL {
+        let baseName = fileURL.deletingPathExtension().lastPathComponent
+        let fileExtension = fileURL.pathExtension
+
+        func candidateURL(_ suffix: Int?) -> URL {
+            let fileName: String
+            if let suffix {
+                let numberedBase = "\(baseName) \(suffix)"
+                fileName = fileExtension.isEmpty ? numberedBase : "\(numberedBase).\(fileExtension)"
+            } else {
+                fileName = fileURL.lastPathComponent
+            }
+            return destinationRootURL.appendingPathComponent(fileName)
+        }
+
+        var candidate = candidateURL(nil)
+        var suffix = 2
+        while reservedDestinationPaths.contains(candidate.standardizedFileURL.path) {
+            candidate = candidateURL(suffix)
+            suffix += 1
+        }
+        return candidate
     }
 
     private func ensureSourceRootAvailable(_ sourceURL: URL) throws {

@@ -45,10 +45,10 @@ struct IngestView: View {
                 .frame(maxWidth: 760, alignment: .leading)
 
             HStack(spacing: 10) {
-                badge("Folder Structure Preserved", tone: .accent)
+                badge(preserveFolderStructure ? "Folder Structure Preserved" : "Flat Copy Mode", tone: .accent)
                 badge(viewModel.preflightStatusTitle, tone: statusBadgeTone)
-                badge(viewModel.sourceURL == nil ? "Source Unset" : "Source Ready", tone: .neutral)
-                badge("SHA-256 \(viewModel.verificationStateTitle)", tone: verificationBadgeTone)
+                badge(viewModel.sourceURL == nil ? "Source Unset" : "Source Ready", tone: sourceBadgeTone)
+                badge(verificationEnabled ? "SHA-256 \(viewModel.verificationStateTitle)" : "SHA-256 Disabled", tone: verificationBadgeTone)
             }
         }
     }
@@ -159,7 +159,7 @@ struct IngestView: View {
             Button("Choose Destination") {
                 viewModel.selectDestination()
             }
-            .buttonStyle(.bordered)
+            .buttonStyle(.borderedProminent)
             .help("Choose the destination folder where ingested media should be copied.")
 
             HStack {
@@ -198,19 +198,20 @@ struct IngestView: View {
             body: "Configure verification, folder handling, and reporting."
         ) {
             Toggle("Verify copied files (SHA-256)", isOn: $verificationEnabled)
-                .disabled(true)
+                .disabled(viewModel.canCancel)
             Toggle("Preserve folder structure", isOn: $preserveFolderStructure)
-                .disabled(true)
+                .disabled(viewModel.canCancel)
             Toggle("Generate ingest report", isOn: $createReport)
-                .disabled(true)
+                .disabled(viewModel.canCancel)
 
             Picker("Conflict handling", selection: $viewModel.conflictMode) {
                 ForEach(IngestConflictMode.allCases) { mode in
                     Text(mode.rawValue).tag(mode)
                 }
             }
+            .help("If a destination file already exists, AssetFox compares SHA-256 first. Matching files are skipped. Different files are only replaced when Overwrite Existing is selected.")
 
-            Text("This stage copies files recursively, preserves relative paths, and applies either skip or overwrite conflict handling.")
+            Text(copySettingsHelpText)
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -262,6 +263,7 @@ struct IngestView: View {
                     )
                 }
                 .buttonStyle(.borderedProminent)
+                .tint(startButtonTint)
                 .disabled(!viewModel.canStartIngest)
                 .help("Start copying the scanned source into the selected destination using the current ingest settings.")
 
@@ -379,32 +381,28 @@ struct IngestView: View {
                 }
             }
 
-            HStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: 10) {
                 Button("Choose Report Folder") {
                     viewModel.selectReportDestination()
                 }
                 .buttonStyle(.bordered)
                 .help("Choose a custom folder for CSV, TXT, and JSON ingest reports.")
 
-                Button("Use Destination Default") {
-                    viewModel.clearReportDestination()
-                }
-                .buttonStyle(.bordered)
-                .disabled(viewModel.reportDestinationURL == nil)
-                .help("Reset report output back to the default reports folder inside the destination.")
+                HStack(spacing: 10) {
+                    Button("Use Default") {
+                        viewModel.clearReportDestination()
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(viewModel.reportDestinationURL == nil)
+                    .help("Reset report output back to the default reports folder inside the destination.")
 
-                Button("Reveal Report") {
-                    viewModel.revealReport()
+                    Button("Reveal in Finder") {
+                        viewModel.revealReport()
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(viewModel.reportFiles == nil)
+                    .help("Reveal the current ingest report folder in Finder.")
                 }
-                .buttonStyle(.bordered)
-                .disabled(viewModel.reportFiles == nil)
-                .help("Reveal the current ingest report folder in Finder.")
-                Button("Open Report") {
-                    viewModel.openReport()
-                }
-                .buttonStyle(.bordered)
-                .disabled(viewModel.reportFiles == nil)
-                .help("Open the human-readable TXT summary for the latest ingest run.")
             }
         }
     }
@@ -486,22 +484,43 @@ struct IngestView: View {
             return "Source scan is still running."
         }
         if viewModel.isCopying {
-            return "Copy and verification are running in the background."
+            return verificationEnabled
+                ? "Copy and verification are running in the background."
+                : "Copy is running in the background without post-copy verification."
         }
         if viewModel.hasBlockingPreflightIssues {
             return "Resolve the blocking preflight issues to enable ingest."
         }
-        return "Ready to copy files recursively and verify each file with SHA-256."
+        return verificationEnabled
+            ? "Ready to copy files recursively and verify each file with SHA-256."
+            : "Ready to copy files recursively without post-copy verification."
+    }
+
+    private var copySettingsHelpText: String {
+        let structureText = preserveFolderStructure
+            ? "preserves relative paths"
+            : "flattens files into the destination root"
+        let verificationText = verificationEnabled
+            ? "runs SHA-256 after each copied file"
+            : "skips post-copy verification"
+        let reportText = createReport
+            ? "writes CSV, TXT, and JSON reports"
+            : "does not write ingest reports"
+
+        return "This stage copies files recursively, \(structureText), \(verificationText), and \(reportText). Existing destination files are still checksum-checked before they are treated as safe skips."
     }
 
     private var verificationBadgeTone: IngestBadgeTone {
         if let jobStatus = viewModel.jobStatus {
             switch jobStatus {
             case .success:
-                return .accent
+                return .success
             case .successWithWarnings, .failed, .cancelled:
                 return .warning
             }
+        }
+        if viewModel.canStartIngest && verificationEnabled {
+            return .success
         }
         if viewModel.workflowState == .verifying || viewModel.workflowState == .copying {
             return .accent
@@ -509,7 +528,7 @@ struct IngestView: View {
         if let copyResult = viewModel.copyResult,
            copyResult.mismatchCount == 0,
            copyResult.verificationFailureCount == 0 {
-            return .accent
+            return .success
         }
         if viewModel.copyProgress.mismatchCount > 0 || viewModel.copyProgress.verificationFailureCount > 0 {
             return .warning
@@ -521,11 +540,21 @@ struct IngestView: View {
         switch viewModel.workflowState {
         case .failed, .completedWithWarnings, .cancelled:
             return .warning
-        case .scanning, .copying, .verifying, .completed, .ready:
+        case .completed, .ready:
+            return .success
+        case .scanning, .copying, .verifying:
             return .accent
         case .idle:
             return viewModel.hasBlockingPreflightIssues ? .warning : .neutral
         }
+    }
+
+    private var sourceBadgeTone: IngestBadgeTone {
+        viewModel.sourceURL == nil ? .neutral : .success
+    }
+
+    private var startButtonTint: Color {
+        viewModel.canStartIngest ? .green : .accentColor
     }
 
     private var progressDetailColor: Color {
@@ -617,6 +646,8 @@ struct IngestView: View {
         switch record.state {
         case .verified:
             return "\(record.relativePath) verified"
+        case .copiedWithoutVerification:
+            return "\(record.relativePath) copied without verification"
         case .mismatch:
             return "\(record.relativePath) failed SHA-256 verification"
         case .failed(let reason):
@@ -630,6 +661,7 @@ struct IngestView: View {
 private enum IngestBadgeTone {
     case neutral
     case accent
+    case success
     case warning
 
     var background: Color {
@@ -638,6 +670,8 @@ private enum IngestBadgeTone {
             return Color.secondary.opacity(0.12)
         case .accent:
             return Color.accentColor.opacity(0.14)
+        case .success:
+            return Color.green.opacity(0.16)
         case .warning:
             return Color.orange.opacity(0.16)
         }
@@ -649,6 +683,8 @@ private enum IngestBadgeTone {
             return .secondary
         case .accent:
             return .accentColor
+        case .success:
+            return .green
         case .warning:
             return .orange
         }

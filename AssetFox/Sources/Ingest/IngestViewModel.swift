@@ -49,6 +49,9 @@ final class IngestViewModel {
     var runWarnings: [String] = []
     var runErrors: [String] = []
     var lastMeaningfulError: String?
+    var verificationEnabledForRun = true
+    var preserveFolderStructureForRun = true
+    var createReportForRun = true
 
     @ObservationIgnored private let sourceScanner: IngestSourceScanner
     @ObservationIgnored private let copier: IngestCopier
@@ -223,6 +226,9 @@ final class IngestViewModel {
 
     var copyProgressFraction: Double {
         guard copyProgress.totalFiles > 0 else { return 0 }
+        guard verificationEnabledForRun else {
+            return Double(copyProgress.copiedFiles) / Double(copyProgress.totalFiles)
+        }
         let completedVerification = copyProgress.verifiedFiles + copyProgress.mismatchCount + copyProgress.verificationFailureCount
         let completedSteps = min(copyProgress.copiedFiles + completedVerification, copyProgress.totalFiles * 2)
         return Double(completedSteps) / Double(copyProgress.totalFiles * 2)
@@ -237,11 +243,11 @@ final class IngestViewModel {
         case .copying:
             return "Copying"
         case .verifying:
-            return "Verifying"
+            return verificationEnabledForRun ? "Verifying" : "Copying"
         case .completed:
-            return "Verified"
+            return verificationEnabledForRun ? "Verified" : "Not Verified"
         case .completedWithWarnings:
-            return "Issues Found"
+            return verificationEnabledForRun ? "Issues Found" : "Completed With Warnings"
         case .failed:
             return "Failed"
         case .cancelled:
@@ -267,7 +273,7 @@ final class IngestViewModel {
         let records = copyResult?.verificationRecords ?? currentRunRecords
         return records.filter {
             switch $0.state {
-            case .verified, .skippedExisting:
+            case .verified, .copiedWithoutVerification, .skippedExisting:
                 return false
             case .mismatch, .failed:
                 return true
@@ -332,6 +338,9 @@ final class IngestViewModel {
         runWarnings = scanResult.warnings
         runErrors = []
         lastMeaningfulError = nil
+        verificationEnabledForRun = verificationEnabled
+        preserveFolderStructureForRun = preserveFolderStructure
+        createReportForRun = createReport
         copyProgress = IngestCopyProgress(
             copiedFiles: 0,
             totalFiles: scanResult.fileCount,
@@ -363,7 +372,9 @@ final class IngestViewModel {
                 let result = try await copier.copyRecursively(
                     sourceURL: sourceURL,
                     destinationURL: destinationURL,
-                    conflictMode: conflictMode
+                    conflictMode: conflictMode,
+                    verificationEnabled: verificationEnabled,
+                    preserveFolderStructure: preserveFolderStructure
                 ) { progress in
                     await MainActor.run {
                         self.copyProgress = progress
@@ -393,7 +404,14 @@ final class IngestViewModel {
                     verificationFailureCount: result.verificationFailureCount,
                     currentFilePath: nil,
                     phase: .completed,
-                    detail: result.mismatchCount == 0 && result.verificationFailureCount == 0 ? "SHA-256 verification complete" : "Verification issues detected",
+                    detail: {
+                        if verificationEnabled {
+                            return result.mismatchCount == 0 && result.verificationFailureCount == 0
+                                ? "SHA-256 verification complete"
+                                : "Verification issues detected"
+                        }
+                        return result.errors.isEmpty ? "Copy completed without post-copy verification" : "Copy completed with issues"
+                    }(),
                     latestRecord: result.verificationRecords.last,
                     warnings: result.warnings,
                     errors: result.errors
@@ -441,11 +459,6 @@ final class IngestViewModel {
     func revealReport() {
         guard let targetURL = reportFiles?.directoryURL ?? reportFiles?.textURL ?? reportFiles?.jsonURL else { return }
         NSWorkspace.shared.activateFileViewerSelecting([targetURL])
-    }
-
-    func openReport() {
-        guard let targetURL = reportFiles?.textURL ?? reportFiles?.jsonURL else { return }
-        NSWorkspace.shared.open(targetURL)
     }
 
     private func startSourceScan() {
@@ -498,6 +511,9 @@ final class IngestViewModel {
         runWarnings = []
         runErrors = []
         lastMeaningfulError = nil
+        verificationEnabledForRun = true
+        preserveFolderStructureForRun = true
+        createReportForRun = true
         if clearReports {
             reportFiles = nil
             reportError = nil
@@ -677,6 +693,11 @@ final class IngestViewModel {
         destinationURL: URL,
         reportWriter: IngestReportWriter
     ) {
+        guard settings.createReport else {
+            reportFiles = nil
+            reportError = nil
+            return
+        }
         do {
             reportFiles = try reportWriter.writeReport(
                 preferredReportRootURL: reportDestinationURL,
