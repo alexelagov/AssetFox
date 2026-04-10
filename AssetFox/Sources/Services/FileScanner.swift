@@ -155,6 +155,17 @@ actor FileScanner {
         return entries
     }
 
+    // MARK: - Trash
+
+    func trash(_ files: [ScannedFile]) throws {
+        let fm = FileManager.default
+
+        for file in files {
+            var trashedItemURL: NSURL?
+            try fm.trashItem(at: file.url, resultingItemURL: &trashedItemURL)
+        }
+    }
+
     // MARK: - Export CSV
 
     func exportCSV(groups: [DuplicateGroup], to url: URL) throws {
@@ -162,7 +173,7 @@ actor FileScanner {
         for (gid, group) in groups.enumerated() {
             for (i, file) in group.files.enumerated() {
                 let sizeMB = String(format: "%.1f", Double(file.size) / 1_048_576)
-                let status = i == group.keepIndex ? "KEEP" : "DUPLICATE"
+                let status = group.selectedIndexes.contains(i) ? "DUPLICATE" : "KEEP"
                 lines.append("\(gid+1),\"\(file.path)\",\(sizeMB),\(file.modifiedFormatted),\(status)")
             }
         }

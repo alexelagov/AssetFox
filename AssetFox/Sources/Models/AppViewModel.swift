@@ -16,7 +16,7 @@ final class AppViewModel {
         return ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
     }
 
-    var resolvedGroups: Int { groups.filter { $0.keepIndex >= 0 }.count }
+    var resolvedGroups: Int { groups.filter { !$0.selectedIndexes.isEmpty }.count }
 
     // MARK: Scan
 
@@ -64,23 +64,31 @@ final class AppViewModel {
 
     // MARK: Group Actions
 
-    func setKeep(groupID: UUID, index: Int) {
+    func toggleSelection(groupID: UUID, index: Int) {
         guard let i = groups.firstIndex(where: { $0.id == groupID }) else { return }
-        groups[i].keepIndex = index
+
+        if groups[i].selectedIndexes.contains(index) {
+            groups[i].selectedIndexes.remove(index)
+            return
+        }
+
+        let keptCount = groups[i].files.count - groups[i].selectedIndexes.count
+        guard keptCount > 1 else { return }
+        groups[i].selectedIndexes.insert(index)
     }
 
     func quarantineGroup(_ group: DuplicateGroup) {
         guard let root = rootURL else { return }
         let quarantineURL = root.appendingPathComponent("_DUPLICATES_QUARANTINE")
-        let filesToMove = group.files.enumerated()
-            .filter { $0.offset != group.keepIndex }
-            .map { $0.element }
+        let filesToMove = group.selectedFiles
+
+        guard !filesToMove.isEmpty else { return }
 
         Task {
             do {
                 let entries = try await scanner.quarantine(filesToMove, to: quarantineURL)
                 quarantineLog.append(contentsOf: entries)
-                removeGroupAndAdvanceSelection(group.id)
+                applyActionResult(groupID: group.id, removedFileIDs: Set(filesToMove.map(\.id)))
             } catch {
                 phase = .error("Move failed: \(error.localizedDescription)")
             }
@@ -95,15 +103,46 @@ final class AppViewModel {
         Task {
             do {
                 for group in groupsToMove {
-                    let filesToMove = group.files.enumerated()
-                        .filter { $0.offset != group.keepIndex }
-                        .map { $0.element }
+                    let filesToMove = group.selectedFiles
+                    guard !filesToMove.isEmpty else { continue }
                     let entries = try await scanner.quarantine(filesToMove, to: quarantineURL)
                     quarantineLog.append(contentsOf: entries)
-                    removeGroupAndAdvanceSelection(group.id)
+                    applyActionResult(groupID: group.id, removedFileIDs: Set(filesToMove.map(\.id)))
                 }
             } catch {
                 phase = .error("Move failed: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    func trashGroup(_ group: DuplicateGroup) {
+        let filesToTrash = group.selectedFiles
+
+        guard !filesToTrash.isEmpty else { return }
+
+        Task {
+            do {
+                try await scanner.trash(filesToTrash)
+                applyActionResult(groupID: group.id, removedFileIDs: Set(filesToTrash.map(\.id)))
+            } catch {
+                phase = .error("Delete failed: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    func trashAll() {
+        let groupsToTrash = groups
+
+        Task {
+            do {
+                for group in groupsToTrash {
+                    let filesToTrash = group.selectedFiles
+                    guard !filesToTrash.isEmpty else { continue }
+                    try await scanner.trash(filesToTrash)
+                    applyActionResult(groupID: group.id, removedFileIDs: Set(filesToTrash.map(\.id)))
+                }
+            } catch {
+                phase = .error("Delete failed: \(error.localizedDescription)")
             }
         }
     }
@@ -141,5 +180,19 @@ final class AppViewModel {
         } else {
             selectedGroupID = groups.last?.id
         }
+    }
+
+    private func applyActionResult(groupID: UUID, removedFileIDs: Set<UUID>) {
+        guard let index = groups.firstIndex(where: { $0.id == groupID }) else { return }
+
+        let remainingFiles = groups[index].files.filter { !removedFileIDs.contains($0.id) }
+
+        if remainingFiles.count <= 1 {
+            removeGroupAndAdvanceSelection(groupID)
+            return
+        }
+
+        groups[index].files = remainingFiles
+        groups[index].selectedIndexes = []
     }
 }

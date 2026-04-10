@@ -1,10 +1,10 @@
 #!/bin/bash
 # =============================================================
-# MediaToolkit — local package builder for macOS
+# AssetFox — local package builder for macOS
 # Run: bash build.sh
 # Output:
-#   ~/Desktop/MediaToolkit.app
-#   ~/Desktop/MediaToolkit-macos.zip
+#   ~/Desktop/AssetFox.app
+#   ~/Desktop/AssetFox-macos.zip
 #
 # This script does not depend on xcodebuild, which is useful in
 # environments where only Command Line Tools are installed.
@@ -12,19 +12,19 @@
 
 set -euo pipefail
 
-APP_NAME="MediaToolkit"
-DISPLAY_NAME="Media Toolkit"
-BUNDLE_ID="com.postprod.mediatoolkit"
+APP_NAME="AssetFox"
+DISPLAY_NAME="AssetFox"
+BUNDLE_ID="com.postprod.assetfox"
 MIN_MACOS="15.0"
 DESKTOP="$HOME/Desktop"
 APP_PATH="$DESKTOP/$APP_NAME.app"
 ZIP_PATH="$DESKTOP/${APP_NAME}-macos.zip"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-SRC_DIR="$SCRIPT_DIR/MediaToolkit/Sources"
+SRC_DIR="$SCRIPT_DIR/AssetFox/Sources"
 
 echo ""
 echo "╔══════════════════════════════════════╗"
-echo "║      MediaToolkit — build .app       ║"
+echo "║        AssetFox — build .app         ║"
 echo "╚══════════════════════════════════════╝"
 echo ""
 

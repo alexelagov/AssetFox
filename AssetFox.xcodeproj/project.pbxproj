@@ -7,7 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		A001 /* Sources/MediaToolkitApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = F001 /* Sources/MediaToolkitApp.swift */; };
+		A001 /* Sources/AssetFoxApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = F001 /* Sources/AssetFoxApp.swift */; };
 		A002 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = F002 /* Models.swift */; };
 		A003 /* AppViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F003 /* AppViewModel.swift */; };
 		A004 /* FileScanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = F004 /* FileScanner.swift */; };
@@ -17,7 +17,7 @@
 		A008 /* ResultsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F008 /* ResultsView.swift */; };
 		A009 /* OtherViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = F009 /* OtherViews.swift */; };
 		A010 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = F010 /* Assets.xcassets */; };
-		A011 /* MediaToolkitRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F012 /* MediaToolkitRootView.swift */; };
+		A011 /* AssetFoxRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F012 /* AssetFoxRootView.swift */; };
 		A012 /* CollectMediaView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F013 /* CollectMediaView.swift */; };
 		A013 /* CollectMediaContracts.swift in Sources */ = {isa = PBXBuildFile; fileRef = F014 /* CollectMediaContracts.swift */; };
 		A014 /* CollectMediaViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F015 /* CollectMediaViewModel.swift */; };
@@ -28,10 +28,16 @@
 		A019 /* CollectMediaRelinker.swift in Sources */ = {isa = PBXBuildFile; fileRef = F020 /* CollectMediaRelinker.swift */; };
 		A020 /* CollectMediaSequenceDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = F021 /* CollectMediaSequenceDetector.swift */; };
 		A021 /* FFProbeAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = F022 /* FFProbeAdapter.swift */; };
+		A022 /* IngestView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F023 /* IngestView.swift */; };
+		A023 /* IngestViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F024 /* IngestViewModel.swift */; };
+		A024 /* IngestSourceScanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = F025 /* IngestSourceScanner.swift */; };
+		A025 /* IngestPreflight.swift in Sources */ = {isa = PBXBuildFile; fileRef = F026 /* IngestPreflight.swift */; };
+		A026 /* IngestCopier.swift in Sources */ = {isa = PBXBuildFile; fileRef = F027 /* IngestCopier.swift */; };
+		A027 /* IngestReportWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = F028 /* IngestReportWriter.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		F001 /* Sources/MediaToolkitApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/MediaToolkitApp.swift; sourceTree = "<group>"; };
+		F001 /* Sources/AssetFoxApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/AssetFoxApp.swift; sourceTree = "<group>"; };
 		F002 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
 		F003 /* AppViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppViewModel.swift; sourceTree = "<group>"; };
 		F004 /* FileScanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileScanner.swift; sourceTree = "<group>"; };
@@ -42,7 +48,7 @@
 		F009 /* OtherViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OtherViews.swift; sourceTree = "<group>"; };
 		F010 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		F011 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-		F012 /* MediaToolkitRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaToolkitRootView.swift; sourceTree = "<group>"; };
+		F012 /* AssetFoxRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssetFoxRootView.swift; sourceTree = "<group>"; };
 		F013 /* CollectMediaView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CollectMediaView.swift; sourceTree = "<group>"; };
 		F014 /* CollectMediaContracts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CollectMediaContracts.swift; sourceTree = "<group>"; };
 		F015 /* CollectMediaViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CollectMediaViewModel.swift; sourceTree = "<group>"; };
@@ -53,7 +59,13 @@
 		F020 /* CollectMediaRelinker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CollectMediaRelinker.swift; sourceTree = "<group>"; };
 		F021 /* CollectMediaSequenceDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CollectMediaSequenceDetector.swift; sourceTree = "<group>"; };
 		F022 /* FFProbeAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FFProbeAdapter.swift; sourceTree = "<group>"; };
-		FAPP /* MediaToolkit.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MediaToolkit.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		F023 /* IngestView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IngestView.swift; sourceTree = "<group>"; };
+		F024 /* IngestViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IngestViewModel.swift; sourceTree = "<group>"; };
+		F025 /* IngestSourceScanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IngestSourceScanner.swift; sourceTree = "<group>"; };
+		F026 /* IngestPreflight.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IngestPreflight.swift; sourceTree = "<group>"; };
+		F027 /* IngestCopier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IngestCopier.swift; sourceTree = "<group>"; };
+		F028 /* IngestReportWriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IngestReportWriter.swift; sourceTree = "<group>"; };
+		FAPP /* AssetFox.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AssetFox.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -67,19 +79,20 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		GRP_APP /* MediaToolkit */ = {
+		GRP_APP /* AssetFox */ = {
 			isa = PBXGroup;
 			children = (
-				F001 /* Sources/MediaToolkitApp.swift */,
+				F001 /* Sources/AssetFoxApp.swift */,
 				GRP_ROOT /* Sources/Root */,
 				GRP_MODELS /* Sources/Models */,
 				GRP_VIEWS /* Sources/Views */,
 				GRP_SERVICES /* Sources/Services */,
 				GRP_COLLECT_MEDIA /* Sources/CollectMedia */,
+				GRP_INGEST /* Sources/Ingest */,
 				F010 /* Assets.xcassets */,
 				F011 /* Info.plist */,
 			);
-			path = MediaToolkit;
+			path = AssetFox;
 			sourceTree = "<group>";
 		};
 		GRP_COLLECT_MEDIA /* Sources/CollectMedia */ = {
@@ -140,10 +153,23 @@
 			path = Sources/Models;
 			sourceTree = "<group>";
 		};
+		GRP_INGEST /* Sources/Ingest */ = {
+			isa = PBXGroup;
+			children = (
+				F023 /* IngestView.swift */,
+				F024 /* IngestViewModel.swift */,
+				F025 /* IngestSourceScanner.swift */,
+				F026 /* IngestPreflight.swift */,
+				F027 /* IngestCopier.swift */,
+				F028 /* IngestReportWriter.swift */,
+			);
+			path = Sources/Ingest;
+			sourceTree = "<group>";
+		};
 		GRP_PROD /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				FAPP /* MediaToolkit.app */,
+				FAPP /* AssetFox.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -151,7 +177,7 @@
 		GRP_ROOT /* Sources/Root */ = {
 			isa = PBXGroup;
 			children = (
-				F012 /* MediaToolkitRootView.swift */,
+				F012 /* AssetFoxRootView.swift */,
 			);
 			path = Sources/Root;
 			sourceTree = "<group>";
@@ -179,7 +205,7 @@
 		ROOT = {
 			isa = PBXGroup;
 			children = (
-				GRP_APP /* MediaToolkit */,
+				GRP_APP /* AssetFox */,
 				GRP_PROD /* Products */,
 			);
 			sourceTree = "<group>";
@@ -187,9 +213,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		TGT /* MediaToolkit */ = {
+		TGT /* AssetFox */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = CFGLIST_TGT /* Build configuration list for PBXNativeTarget "MediaToolkit" */;
+			buildConfigurationList = CFGLIST_TGT /* Build configuration list for PBXNativeTarget "AssetFox" */;
 			buildPhases = (
 				B001 /* Sources */,
 				B002 /* Resources */,
@@ -199,9 +225,9 @@
 			);
 			dependencies = (
 			);
-			name = MediaToolkit;
-			productName = MediaToolkit;
-			productReference = FAPP /* MediaToolkit.app */;
+			name = AssetFox;
+			productName = AssetFox;
+			productReference = FAPP /* AssetFox.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -219,7 +245,7 @@
 					};
 				};
 			};
-			buildConfigurationList = CFGLIST_PROJ /* Build configuration list for PBXProject "MediaToolkit" */;
+			buildConfigurationList = CFGLIST_PROJ /* Build configuration list for PBXProject "AssetFox" */;
 			compatibilityVersion = "Xcode 15.0";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
@@ -232,7 +258,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				TGT /* MediaToolkit */,
+				TGT /* AssetFox */,
 			);
 		};
 /* End PBXProject section */
@@ -253,8 +279,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				A001 /* Sources/MediaToolkitApp.swift in Sources */,
-				A011 /* MediaToolkitRootView.swift in Sources */,
+				A001 /* Sources/AssetFoxApp.swift in Sources */,
+				A011 /* AssetFoxRootView.swift in Sources */,
 				A002 /* Models.swift in Sources */,
 				A003 /* AppViewModel.swift in Sources */,
 				A013 /* CollectMediaContracts.swift in Sources */,
@@ -269,6 +295,12 @@
 				A019 /* CollectMediaRelinker.swift in Sources */,
 				A020 /* CollectMediaSequenceDetector.swift in Sources */,
 				A021 /* FFProbeAdapter.swift in Sources */,
+				A022 /* IngestView.swift in Sources */,
+				A023 /* IngestViewModel.swift in Sources */,
+				A024 /* IngestSourceScanner.swift in Sources */,
+				A025 /* IngestPreflight.swift in Sources */,
+				A026 /* IngestCopier.swift in Sources */,
+				A027 /* IngestReportWriter.swift in Sources */,
 				A006 /* DropZoneView.swift in Sources */,
 				A007 /* ScanProgressView.swift in Sources */,
 				A008 /* ResultsView.swift in Sources */,
@@ -411,15 +443,15 @@
 				DEVELOPMENT_TEAM = "";
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = MediaToolkit/Info.plist;
+				INFOPLIST_FILE = AssetFox/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.postprod.mediatoolkit;
-				PRODUCT_NAME = "$(TARGET_NAME)";
+					PRODUCT_BUNDLE_IDENTIFIER = com.postprod.assetfox;
+					PRODUCT_NAME = AssetFox;
 				SDKROOT = macosx;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 6.0;
@@ -439,15 +471,15 @@
 				DEVELOPMENT_TEAM = "";
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = MediaToolkit/Info.plist;
+				INFOPLIST_FILE = AssetFox/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.postprod.mediatoolkit;
-				PRODUCT_NAME = "$(TARGET_NAME)";
+					PRODUCT_BUNDLE_IDENTIFIER = com.postprod.assetfox;
+					PRODUCT_NAME = AssetFox;
 				SDKROOT = macosx;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 6.0;
@@ -457,7 +489,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		CFGLIST_PROJ /* Build configuration list for PBXProject "MediaToolkit" */ = {
+		CFGLIST_PROJ /* Build configuration list for PBXProject "AssetFox" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				CFG_PROJ_DEBUG /* Debug */,
@@ -466,7 +498,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		CFGLIST_TGT /* Build configuration list for PBXNativeTarget "MediaToolkit" */ = {
+		CFGLIST_TGT /* Build configuration list for PBXNativeTarget "AssetFox" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				CFG_TGT_DEBUG /* Debug */,

@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ResultsView: View {
     @Bindable var vm: AppViewModel
+    @State private var pendingDeleteAction: PendingDeleteAction?
 
     var body: some View {
         NavigationSplitView {
@@ -28,11 +29,13 @@ struct ResultsView: View {
                 }
 
                 Button(role: .destructive) {
-                    vm.quarantineAll()
+                    guard let group = currentGroup else { return }
+                    pendingDeleteAction = .group(group)
                 } label: {
-                    Label("Move All to Quarantine", systemImage: "trash")
+                    Label("Delete Duplicates", systemImage: "trash")
                 }
                 .tint(.orange)
+                .disabled(currentGroup?.selectedIndexes.isEmpty ?? true)
 
                 Button {
                     vm.reset()
@@ -41,6 +44,42 @@ struct ResultsView: View {
                 }
             }
         }
+        .alert(
+            pendingDeleteAction?.title ?? "Delete Duplicates",
+            isPresented: Binding(
+                get: { pendingDeleteAction != nil },
+                set: { isPresented in
+                    if !isPresented {
+                        pendingDeleteAction = nil
+                    }
+                }
+            ),
+            presenting: pendingDeleteAction
+        ) { action in
+            Button(action.confirmButtonTitle, role: .destructive) {
+                performDelete(action)
+            }
+            Button("Cancel", role: .cancel) {
+                pendingDeleteAction = nil
+            }
+        } message: { action in
+            Text(action.message)
+        }
+    }
+
+    private func performDelete(_ action: PendingDeleteAction) {
+        switch action {
+        case .group(let group):
+            vm.trashGroup(group)
+        case .all:
+            vm.trashAll()
+        }
+        pendingDeleteAction = nil
+    }
+
+    private var currentGroup: DuplicateGroup? {
+        guard let id = vm.selectedGroupID else { return nil }
+        return vm.groups.first(where: { $0.id == id })
     }
 }
 
@@ -134,10 +173,12 @@ struct GroupDetailView: View {
                     ForEach(Array(group.files.enumerated()), id: \.element.id) { index, file in
                         FileRowView(
                             file: file,
-                            isKept: index == group.keepIndex,
+                            isSelected: group.selectedIndexes.contains(index),
+                            selectedCount: group.selectedIndexes.count,
+                            totalCount: group.files.count,
                             isOldest: index == 0
                         ) {
-                            vm.setKeep(groupID: group.id, index: index)
+                            vm.toggleSelection(groupID: group.id, index: index)
                         }
                     }
                 }
@@ -147,7 +188,7 @@ struct GroupDetailView: View {
             Divider()
 
             HStack {
-                Text("File \(group.keepIndex + 1) will be kept. The rest will be moved to quarantine.")
+                Text(selectionSummary(for: group))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Spacer()
@@ -164,10 +205,22 @@ struct GroupDetailView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(.orange)
+                .disabled(group.selectedIndexes.isEmpty)
             }
             .padding()
             .background(.bar)
         }
+    }
+
+    private func selectionSummary(for group: DuplicateGroup) -> String {
+        let selectedCount = group.selectedIndexes.count
+        let keptCount = group.files.count - selectedCount
+
+        if selectedCount == 0 {
+            return "No files are selected. Pick one or more duplicates to move to quarantine."
+        }
+
+        return "\(selectedCount) file\(selectedCount == 1 ? "" : "s") selected for action. \(keptCount) file\(keptCount == 1 ? "" : "s") will stay in place."
     }
 }
 
@@ -175,7 +228,9 @@ struct GroupDetailView: View {
 
 struct FileRowView: View {
     let file: ScannedFile
-    let isKept: Bool
+    let isSelected: Bool
+    let selectedCount: Int
+    let totalCount: Int
     let isOldest: Bool
     let onKeep: () -> Void
 
@@ -184,11 +239,12 @@ struct FileRowView: View {
             Button {
                 onKeep()
             } label: {
-                Image(systemName: isKept ? "checkmark.circle.fill" : "circle")
+                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
                     .font(.title2)
-                    .foregroundStyle(isKept ? Color.green : Color.secondary)
+                    .foregroundStyle(isSelected ? Color.green : Color.secondary)
             }
             .buttonStyle(.plain)
+            .help(selectionHelpText)
 
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {
@@ -204,13 +260,21 @@ struct FileRowView: View {
                             .foregroundStyle(Color.blue)
                             .clipShape(Capsule())
                     }
-                    if isKept {
-                        Text("kept")
+                    if isSelected {
+                        Text("selected")
                             .font(.caption2)
                             .padding(.horizontal, 5)
                             .padding(.vertical, 2)
                             .background(Color.green.opacity(0.12))
                             .foregroundStyle(Color.green)
+                            .clipShape(Capsule())
+                    } else {
+                        Text("stays")
+                            .font(.caption2)
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 2)
+                            .background(Color.secondary.opacity(0.12))
+                            .foregroundStyle(Color.secondary)
                             .clipShape(Capsule())
                     }
                 }
@@ -243,11 +307,57 @@ struct FileRowView: View {
         .padding(12)
         .background(
             RoundedRectangle(cornerRadius: 10)
-                .fill(isKept ? Color.green.opacity(0.06) : Color(.windowBackgroundColor))
+                .fill(isSelected ? Color.green.opacity(0.06) : Color(.windowBackgroundColor))
                 .overlay(
                     RoundedRectangle(cornerRadius: 10)
-                        .strokeBorder(isKept ? Color.green.opacity(0.25) : Color.clear, lineWidth: 1)
+                        .strokeBorder(isSelected ? Color.green.opacity(0.25) : Color.clear, lineWidth: 1)
                 )
         )
+    }
+
+    private var selectionHelpText: String {
+        if isSelected {
+            return "Deselect this file so it stays in place"
+        }
+
+        if selectedCount >= totalCount - 1 {
+            return "At least one file in the set must stay unselected"
+        }
+
+        return "Select this file for delete or quarantine"
+    }
+}
+
+private enum PendingDeleteAction {
+    case group(DuplicateGroup)
+    case all
+
+    var title: String {
+        switch self {
+        case .group:
+            return "Delete Duplicate Files?"
+        case .all:
+            return "Delete All Duplicates?"
+        }
+    }
+
+    var message: String {
+        switch self {
+        case .group(let group):
+            let selectedCount = group.selectedIndexes.count
+            let keptCount = group.files.count - selectedCount
+            return "This will move \(selectedCount) selected file\(selectedCount == 1 ? "" : "s") from the current duplicate set to the Mac Trash. \(keptCount) file\(keptCount == 1 ? "" : "s") will stay in place."
+        case .all:
+            return "This will move every duplicate file from every set to the Mac Trash. One keep file per set will stay in place."
+        }
+    }
+
+    var confirmButtonTitle: String {
+        switch self {
+        case .group:
+            return "Delete"
+        case .all:
+            return "Delete All"
+        }
     }
 }

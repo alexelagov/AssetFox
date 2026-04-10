@@ -1,10 +1,10 @@
-# MediaToolkit Smoke Test
+# AssetFox Smoke Test
 
 Run this after a build or on a transferred `.app`.
 
 ## Launch
 
-1. Open `MediaToolkit.app`.
+1. Open `AssetFox.app`.
 2. Confirm the window opens once and stays in a single scene.
 3. Switch between the `DuplicateFinder` and `Collect Media` tabs.
 
@@ -38,4 +38,3 @@ Run this after a build or on a transferred `.app`.
 2. Move it to another Mac.
 3. Confirm it opens without requiring Python.
 4. If Gatekeeper prompts on first launch, use `Open Anyway`.
-

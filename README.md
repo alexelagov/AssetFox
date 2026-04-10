@@ -1,4 +1,4 @@
-# MediaToolkit
+# AssetFox
 
 Merged macOS app with two top-level tabs:
 
@@ -18,18 +18,18 @@ bash build.sh
 
 The script creates:
 
-- `~/Desktop/MediaToolkit.app`
-- `~/Desktop/MediaToolkit-macos.zip`
+- `~/Desktop/AssetFox.app`
+- `~/Desktop/AssetFox-macos.zip`
 
 The app bundle is ad-hoc signed before the zip is produced. For transfer to another Mac, copy the zip, unzip it, and open the app. If Gatekeeper blocks first launch, use `Open Anyway` in macOS Security settings.
 
 ## Development Notes
 
-- Open `MediaToolkit.xcodeproj` in Xcode for full IDE work.
+- Open `AssetFox.xcodeproj` in Xcode for full IDE work.
 - The merged app uses one window with a `TabView` at the root.
-- The `Collect Media` feature contract is frozen in `MediaToolkit/Sources/CollectMedia/Models/CollectMediaContracts.swift`.
-- The `Collect Media` backend lives under `MediaToolkit/Sources/CollectMedia/Services`.
-- The `Collect Media` SwiftUI tab lives under `MediaToolkit/Sources/CollectMedia/ViewModels` and `MediaToolkit/Sources/CollectMedia/Views`.
+- The `Collect Media` feature contract is frozen in `AssetFox/Sources/CollectMedia/Models/CollectMediaContracts.swift`.
+- The `Collect Media` backend lives under `AssetFox/Sources/CollectMedia/Services`.
+- The `Collect Media` SwiftUI tab lives under `AssetFox/Sources/CollectMedia/ViewModels` and `AssetFox/Sources/CollectMedia/Views`.
 - No Python runtime is embedded in the merged macOS target.
 
 ## Smoke Test
@@ -40,8 +40,8 @@ See [docs/SMOKE_TEST.md](docs/SMOKE_TEST.md) for the launch and feature checklis
 
 ```text
 MediaToolkit/
-├── MediaToolkit.xcodeproj/
-├── MediaToolkit/
+├── AssetFox.xcodeproj/
+├── AssetFox/
 │   ├── Sources/
 │   │   ├── Root/
 │   │   ├── Models/

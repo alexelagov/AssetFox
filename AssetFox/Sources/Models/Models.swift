@@ -7,7 +7,6 @@ struct ScannedFile: Identifiable, Hashable {
     let url: URL
     let size: Int64
     let modifiedDate: Date
-    var isKept: Bool = false
 
     var name: String { url.lastPathComponent }
     var path: String { url.path }
@@ -25,10 +24,33 @@ struct ScannedFile: Identifiable, Hashable {
 struct DuplicateGroup: Identifiable {
     let id = UUID()
     var files: [ScannedFile]
-    var keepIndex: Int = 0  // index of the file to keep
+    var selectedIndexes: Set<Int>
+
+    init(files: [ScannedFile], selectedIndexes: Set<Int>? = nil) {
+        self.files = files
+        self.selectedIndexes = selectedIndexes ?? Set(files.indices.dropFirst())
+    }
+
+    var selectedFiles: [ScannedFile] {
+        files.enumerated()
+            .filter { selectedIndexes.contains($0.offset) }
+            .map(\.element)
+    }
+
+    var keptIndexes: [Int] {
+        files.indices.filter { !selectedIndexes.contains($0) }
+    }
+
+    var primaryKeptIndex: Int? {
+        keptIndexes.first
+    }
+
+    var recoverableCount: Int {
+        selectedIndexes.count
+    }
 
     var wastedBytes: Int64 {
-        Int64(files.count - 1) * (files.first?.size ?? 0)
+        Int64(recoverableCount) * (files.first?.size ?? 0)
     }
     var wastedFormatted: String {
         ByteCountFormatter.string(fromByteCount: wastedBytes, countStyle: .file)

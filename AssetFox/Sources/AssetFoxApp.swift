@@ -1,10 +1,10 @@
 import SwiftUI
 
 @main
-struct MediaToolkitApp: App {
+struct AssetFoxApp: App {
     var body: some Scene {
         WindowGroup {
-            MediaToolkitRootView()
+            AssetFoxRootView()
                 .frame(minWidth: 980, minHeight: 680)
         }
         .windowStyle(.titleBar)
