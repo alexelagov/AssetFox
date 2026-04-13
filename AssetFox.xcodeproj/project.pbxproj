@@ -34,6 +34,12 @@
 		A025 /* IngestPreflight.swift in Sources */ = {isa = PBXBuildFile; fileRef = F026 /* IngestPreflight.swift */; };
 		A026 /* IngestCopier.swift in Sources */ = {isa = PBXBuildFile; fileRef = F027 /* IngestCopier.swift */; };
 		A027 /* IngestReportWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = F028 /* IngestReportWriter.swift */; };
+		A028 /* MediaInfoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F029 /* MediaInfoView.swift */; };
+		A029 /* MediaInfoInspector.swift in Sources */ = {isa = PBXBuildFile; fileRef = F030 /* MediaInfoInspector.swift */; };
+		A030 /* MediaInfoModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = F031 /* MediaInfoModels.swift */; };
+		A031 /* MediaInfoLibService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F032 /* MediaInfoLibService.swift */; };
+		A032 /* MediaInfoLibBridge.mm in Sources */ = {isa = PBXBuildFile; fileRef = F034 /* MediaInfoLibBridge.mm */; };
+		A033 /* OpenSourceLicenses.txt in Resources */ = {isa = PBXBuildFile; fileRef = F036 /* OpenSourceLicenses.txt */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -65,6 +71,14 @@
 		F026 /* IngestPreflight.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IngestPreflight.swift; sourceTree = "<group>"; };
 		F027 /* IngestCopier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IngestCopier.swift; sourceTree = "<group>"; };
 		F028 /* IngestReportWriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IngestReportWriter.swift; sourceTree = "<group>"; };
+		F029 /* MediaInfoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaInfoView.swift; sourceTree = "<group>"; };
+		F030 /* MediaInfoInspector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaInfoInspector.swift; sourceTree = "<group>"; };
+		F031 /* MediaInfoModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaInfoModels.swift; sourceTree = "<group>"; };
+		F032 /* MediaInfoLibService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaInfoLibService.swift; sourceTree = "<group>"; };
+		F033 /* MediaInfoLibBridge.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = MediaInfoLibBridge.h; sourceTree = "<group>"; };
+		F034 /* MediaInfoLibBridge.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = MediaInfoLibBridge.mm; sourceTree = "<group>"; };
+		F035 /* AssetFox-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "AssetFox-Bridging-Header.h"; sourceTree = "<group>"; };
+		F036 /* OpenSourceLicenses.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = OpenSourceLicenses.txt; sourceTree = "<group>"; };
 		FAPP /* AssetFox.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AssetFox.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -78,6 +92,30 @@
 		};
 /* End PBXFrameworksBuildPhase section */
 
+/* Begin PBXShellScriptBuildPhase section */
+		B004 /* Embed MediaInfoLib */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"$(PROJECT_DIR)/AssetFox/Vendor/MediaInfoLib/libmediainfo.dylib",
+				"$(PROJECT_DIR)/AssetFox/Vendor/MediaInfoLib/libmediainfo.0.dylib",
+			);
+			name = "Embed MediaInfoLib";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(TARGET_BUILD_DIR)/$(FRAMEWORKS_FOLDER_PATH)/libmediainfo.dylib",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "set -eu\nSOURCE_DIR=\"${PROJECT_DIR}/AssetFox/Vendor/MediaInfoLib\"\nSOURCE_DYLIB=\"${SOURCE_DIR}/libmediainfo.dylib\"\nSOURCE_DYLIB_VERSIONED=\"${SOURCE_DIR}/libmediainfo.0.dylib\"\nDEST_DIR=\"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}\"\nDEST_DYLIB=\"${DEST_DIR}/libmediainfo.dylib\"\n\nif [ -f \"$SOURCE_DYLIB\" ]; then\n  INPUT_DYLIB=\"$SOURCE_DYLIB\"\nelif [ -f \"$SOURCE_DYLIB_VERSIONED\" ]; then\n  INPUT_DYLIB=\"$SOURCE_DYLIB_VERSIONED\"\nelse\n  echo \"warning: MediaInfoLib dylib not found in ${SOURCE_DIR}. Building without embedded deep metadata runtime.\"\n  exit 0\nfi\n\nmkdir -p \"$DEST_DIR\"\n# Keep the first working integration simple: copy the prebuilt dylib into the app bundle.\n# The MediaInfo bridge loads it directly from Contents/Frameworks via dlopen, so a local\n# debug build does not need an install_name rewrite or separate nested-library signing here.\ncp -f \"$INPUT_DYLIB\" \"$DEST_DYLIB\"\nchmod 755 \"$DEST_DYLIB\"\n";
+		};
+/* End PBXShellScriptBuildPhase section */
+
 /* Begin PBXGroup section */
 		GRP_APP /* AssetFox */ = {
 			isa = PBXGroup;
@@ -89,8 +127,11 @@
 				GRP_SERVICES /* Sources/Services */,
 				GRP_COLLECT_MEDIA /* Sources/CollectMedia */,
 				GRP_INGEST /* Sources/Ingest */,
+				GRP_MEDIA_INFO /* Sources/MediaInfo */,
 				F010 /* Assets.xcassets */,
 				F011 /* Info.plist */,
+				F035 /* AssetFox-Bridging-Header.h */,
+				F036 /* OpenSourceLicenses.txt */,
 			);
 			path = AssetFox;
 			sourceTree = "<group>";
@@ -166,6 +207,19 @@
 			path = Sources/Ingest;
 			sourceTree = "<group>";
 		};
+		GRP_MEDIA_INFO /* Sources/MediaInfo */ = {
+			isa = PBXGroup;
+			children = (
+				F029 /* MediaInfoView.swift */,
+				F030 /* MediaInfoInspector.swift */,
+				F031 /* MediaInfoModels.swift */,
+				F032 /* MediaInfoLibService.swift */,
+				F033 /* MediaInfoLibBridge.h */,
+				F034 /* MediaInfoLibBridge.mm */,
+			);
+			path = Sources/MediaInfo;
+			sourceTree = "<group>";
+		};
 		GRP_PROD /* Products */ = {
 			isa = PBXGroup;
 			children = (
@@ -219,6 +273,7 @@
 			buildPhases = (
 				B001 /* Sources */,
 				B002 /* Resources */,
+				B004 /* Embed MediaInfoLib */,
 				B003 /* Frameworks */,
 			);
 			buildRules = (
@@ -269,6 +324,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				A010 /* Assets.xcassets in Resources */,
+				A033 /* OpenSourceLicenses.txt in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -301,6 +357,11 @@
 				A025 /* IngestPreflight.swift in Sources */,
 				A026 /* IngestCopier.swift in Sources */,
 				A027 /* IngestReportWriter.swift in Sources */,
+				A028 /* MediaInfoView.swift in Sources */,
+				A029 /* MediaInfoInspector.swift in Sources */,
+				A030 /* MediaInfoModels.swift in Sources */,
+				A031 /* MediaInfoLibService.swift in Sources */,
+				A032 /* MediaInfoLibBridge.mm in Sources */,
 				A006 /* DropZoneView.swift in Sources */,
 				A007 /* ScanProgressView.swift in Sources */,
 				A008 /* ResultsView.swift in Sources */,
@@ -349,7 +410,7 @@
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_NO_COMMON_BLOCKS = YES;
@@ -412,7 +473,7 @@
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
@@ -453,6 +514,7 @@
 					PRODUCT_BUNDLE_IDENTIFIER = com.postprod.assetfox;
 					PRODUCT_NAME = AssetFox;
 				SDKROOT = macosx;
+				SWIFT_OBJC_BRIDGING_HEADER = AssetFox/AssetFox-Bridging-Header.h;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 6.0;
 			};
@@ -481,6 +543,7 @@
 					PRODUCT_BUNDLE_IDENTIFIER = com.postprod.assetfox;
 					PRODUCT_NAME = AssetFox;
 				SDKROOT = macosx;
+				SWIFT_OBJC_BRIDGING_HEADER = AssetFox/AssetFox-Bridging-Header.h;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 6.0;
 			};

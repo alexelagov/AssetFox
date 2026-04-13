@@ -22,6 +22,12 @@ struct AssetFoxRootView: View {
                     Label("Ingest", systemImage: "square.and.arrow.down.on.square")
                 }
                 .tag(TopLevelTab.ingest)
+
+            MediaInfoView()
+                .tabItem {
+                    Label("Media Info", systemImage: "info.square")
+                }
+                .tag(TopLevelTab.mediaInfo)
         }
     }
 }
@@ -30,4 +36,5 @@ private enum TopLevelTab: Hashable {
     case duplicateFinder
     case collectMedia
     case ingest
+    case mediaInfo
 }
