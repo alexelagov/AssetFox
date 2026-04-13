@@ -236,13 +236,15 @@ struct CollectMediaView: View {
                     viewModel.startCollect()
                 }
                 .buttonStyle(.borderedProminent)
+                .tint(.green)
                 .controlSize(.large)
                 .disabled(!viewModel.canCollect)
 
                 Button("Stop") {
                     viewModel.stopCollect()
                 }
-                .buttonStyle(.bordered)
+                .buttonStyle(.borderedProminent)
+                .tint(.red)
                 .controlSize(.large)
                 .disabled(!viewModel.isCollecting)
             }
@@ -401,7 +403,8 @@ struct CollectMediaView: View {
 
                 HStack(spacing: 8) {
                     Button(buttonTitle, action: action)
-                        .buttonStyle(.bordered)
+                        .buttonStyle(.borderedProminent)
+                        .tint(.accentColor)
 
                     if let secondaryButtonTitle, let secondaryAction {
                         Button(secondaryButtonTitle, action: secondaryAction)
