@@ -90,7 +90,7 @@ struct MediaInfoInspector {
             enrichedWithMediaInfo,
             url: url,
             rawFamily: rawFamily,
-            allowFallback: !usesMediaInfoLib(enrichedWithMediaInfo.metadataSource)
+            allowFallback: true
         )
         return addAvailabilityWarnings(
             to: merged,
@@ -324,29 +324,71 @@ struct MediaInfoInspector {
         }
 
         var merged = native
-        merged.rawFamily = native.rawFamily ?? probe.rawFamily ?? rawFamily
-        merged.container = probe.container ?? native.container
-        merged.profile = probe.profile ?? native.profile
-        merged.codec = probe.codec ?? native.codec
-        merged.resolution = probe.resolution ?? native.resolution
-        merged.frameRate = probe.frameRate ?? native.frameRate
-        merged.duration = probe.duration ?? native.duration
-        merged.timecode = probe.timecode ?? native.timecode
-        merged.overallBitRate = native.overallBitRate
-        merged.encodedDate = native.encodedDate
-        merged.taggedDate = native.taggedDate
-        merged.writingApplication = native.writingApplication
-        merged.writingLibrary = native.writingLibrary
-        merged.bitDepth = probe.bitDepth ?? native.bitDepth
-        merged.pixelFormat = probe.pixelFormat ?? native.pixelFormat
-        merged.colorSpace = probe.colorSpace ?? native.colorSpace
-        merged.transferFunction = probe.transferFunction ?? native.transferFunction
-        merged.colorPrimaries = probe.colorPrimaries ?? native.colorPrimaries
-        merged.colorRange = probe.colorRange ?? native.colorRange
-        merged.audioSummary = probe.audioSummary ?? native.audioSummary
-        merged.videoTrackCount = native.videoTrackCount
-        merged.audioTrackCount = native.audioTrackCount
-        merged.metadataSource = native.metadataSource == "Filesystem" ? "ffprobe" : "\(native.metadataSource) + ffprobe"
+        var contributedFFProbeData = false
+
+        if merged.rawFamily == nil, let value = probe.rawFamily ?? rawFamily {
+            merged.rawFamily = value
+            contributedFFProbeData = true
+        }
+        if merged.container == nil, let value = probe.container {
+            merged.container = value
+            contributedFFProbeData = true
+        }
+        if merged.profile == nil, let value = probe.profile {
+            merged.profile = value
+            contributedFFProbeData = true
+        }
+        if merged.codec == nil, let value = probe.codec {
+            merged.codec = value
+            contributedFFProbeData = true
+        }
+        if merged.resolution == nil, let value = probe.resolution {
+            merged.resolution = value
+            contributedFFProbeData = true
+        }
+        if merged.frameRate == nil, let value = probe.frameRate {
+            merged.frameRate = value
+            contributedFFProbeData = true
+        }
+        if merged.duration == nil, let value = probe.duration {
+            merged.duration = value
+            contributedFFProbeData = true
+        }
+        if merged.timecode == nil, let value = probe.timecode {
+            merged.timecode = value
+            contributedFFProbeData = true
+        }
+        if merged.bitDepth == nil, let value = probe.bitDepth {
+            merged.bitDepth = value
+            contributedFFProbeData = true
+        }
+        if merged.pixelFormat == nil, let value = probe.pixelFormat {
+            merged.pixelFormat = value
+            contributedFFProbeData = true
+        }
+        if merged.colorSpace == nil, let value = probe.colorSpace {
+            merged.colorSpace = value
+            contributedFFProbeData = true
+        }
+        if merged.transferFunction == nil, let value = probe.transferFunction {
+            merged.transferFunction = value
+            contributedFFProbeData = true
+        }
+        if merged.colorPrimaries == nil, let value = probe.colorPrimaries {
+            merged.colorPrimaries = value
+            contributedFFProbeData = true
+        }
+        if merged.colorRange == nil, let value = probe.colorRange {
+            merged.colorRange = value
+            contributedFFProbeData = true
+        }
+        if merged.audioSummary == nil, let value = probe.audioSummary {
+            merged.audioSummary = value
+            contributedFFProbeData = true
+        }
+        if contributedFFProbeData {
+            merged.metadataSource = native.metadataSource == "Filesystem" ? "ffprobe" : "\(native.metadataSource) + ffprobe"
+        }
         return merged
     }
 
@@ -568,6 +610,10 @@ struct MediaInfoInspector {
 
         if case .failed(let errors) = mediaInfoStatus {
             updated.warnings.append(contentsOf: errors)
+        }
+
+        updated.warnings.removeAll { warning in
+            warning.localizedCaseInsensitiveContains("AVFoundation could not fully inspect this file")
         }
 
         return updated

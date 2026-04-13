@@ -6,7 +6,7 @@ Run this after a build or on a transferred `.app`.
 
 1. Open `AssetFox.app`.
 2. Confirm the window opens once and stays in a single scene.
-3. Switch between the `DuplicateFinder` and `Collect Media` tabs.
+3. Switch between `DuplicateFinder`, `Collect Media`, `Ingest`, and `Media Info`.
 
 ## DuplicateFinder
 
@@ -31,6 +31,23 @@ Run this after a build or on a transferred `.app`.
 5. Run a collection and confirm the progress bar, counters, log, and summary appear.
 6. Stop an in-flight run and confirm partial outputs are left in a safe state.
 7. Confirm `report.csv` is written and `missing.txt` exists when files are unresolved.
+
+## Ingest
+
+1. Select a real source folder and confirm recursive scan updates file, folder, and size counts.
+2. Select a destination folder and confirm preflight checks update.
+3. Run ingest with default settings and confirm progress, verification, and result summary update.
+4. Cancel an in-flight ingest and confirm partial progress remains visible.
+5. Confirm TXT/CSV/JSON reports are written when report generation is enabled.
+
+## Media Info
+
+1. Load one or more real media files.
+2. Confirm `Inspect` shows `General`, `Video`, and `Audio` metadata sections.
+3. Confirm MXF or other pro formats prefer MediaInfoLib-backed fields when the embedded library is present.
+4. Switch to `Compare`, select two or more files, and confirm differences render correctly.
+5. Enable `Differences only` and confirm only materially different rows remain visible.
+6. Export a TXT metadata report and confirm it opens correctly.
 
 ## Transfer Check
 

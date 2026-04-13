@@ -7,14 +7,19 @@ struct CollectMediaView: View {
 
     private let primaryColumnWidth: CGFloat = 720
     private let sidebarWidth: CGFloat = 360
+    private let workspaceSpacing: CGFloat = 24
+
+    private var workspaceWidth: CGFloat {
+        primaryColumnWidth + sidebarWidth + workspaceSpacing
+    }
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 28) {
+            VStack(alignment: .leading, spacing: 24) {
                 topSection
                 workspaceSection
             }
-            .frame(maxWidth: 1180, alignment: .leading)
+            .frame(maxWidth: workspaceWidth, alignment: .leading)
             .padding(.horizontal, 32)
             .padding(.vertical, 28)
             .frame(maxWidth: .infinity, alignment: .center)
@@ -83,7 +88,7 @@ struct CollectMediaView: View {
             Divider()
 
             ViewThatFits(in: .horizontal) {
-                HStack(spacing: 28) {
+                HStack(spacing: 24) {
                     quickFact(title: "XML", value: selectionState(for: viewModel.xmlURL))
                     quickFact(title: "Destination", value: selectionState(for: viewModel.destinationURL))
                     quickFact(title: "Relink", value: viewModel.options.smartRelink ? "Enabled" : "Off")
@@ -102,7 +107,7 @@ struct CollectMediaView: View {
 
     private var workspaceSection: some View {
         ViewThatFits(in: .horizontal) {
-            HStack(alignment: .top, spacing: 24) {
+            HStack(alignment: .top, spacing: workspaceSpacing) {
                 VStack(alignment: .leading, spacing: 24) {
                     sourceSection(viewModel: viewModel)
                     logSection(viewModel: viewModel)
@@ -214,7 +219,7 @@ struct CollectMediaView: View {
                     .font(.subheadline.weight(.semibold))
             }
         }
-        .padding(20)
+        .padding(22)
         .background(workspacePanel)
     }
 
@@ -329,7 +334,7 @@ struct CollectMediaView: View {
                 }
             }
         }
-        .padding(20)
+        .padding(22)
         .background(workspacePanel)
     }
 
@@ -427,7 +432,7 @@ struct CollectMediaView: View {
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.secondary)
             Text(value)
-                .font(.body.weight(.medium))
+                .font(.headline.weight(.semibold))
         }
     }
 
@@ -437,7 +442,7 @@ struct CollectMediaView: View {
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.secondary)
             Text(value)
-                .font(.caption.monospaced())
+                .font(.system(size: 12, weight: .semibold, design: .monospaced))
                 .foregroundStyle(.primary)
                 .lineLimit(2)
                 .truncationMode(.middle)
@@ -451,7 +456,7 @@ struct CollectMediaView: View {
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.secondary)
             Text("\(value)")
-                .font(.title3.weight(.semibold))
+                .font(.headline.weight(.semibold))
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(14)

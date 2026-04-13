@@ -1,15 +1,16 @@
 # AssetFox
 
-Version: `0.1.0`  
+Version: `0.2.0`  
 Channel: `Alpha MVP`
 
-Merged macOS app with three top-level tabs:
+Merged macOS app with four top-level tabs:
 
 - `DuplicateFinder`
 - `Collect Media`
 - `Ingest`
+- `Media Info`
 
-`DuplicateFinder` remains the baseline visual/architectural shell. `Collect Media` has been ported natively to SwiftUI and Swift services with Python excluded from the final app target. `Ingest` is now part of the MVP and includes source scanning, preflight validation, recursive copy, optional SHA-256 verification, optional report generation, cancellation, and result reporting.
+`DuplicateFinder` remains the baseline visual/architectural shell. `Collect Media` has been ported natively to SwiftUI and Swift services with Python excluded from the final app target. `Ingest` is now part of the MVP and includes source scanning, preflight validation, recursive copy, optional SHA-256 verification, optional report generation, cancellation, and result reporting. `Media Info` adds deep inspection, MediaInfoLib-backed metadata, comparison mode, and metadata export for post-production media.
 
 ## Build And Transfer
 
@@ -34,6 +35,7 @@ The app bundle is ad-hoc signed before the zip is produced. For transfer to anot
 - The `Collect Media` backend lives under `AssetFox/Sources/CollectMedia/Services`.
 - The `Collect Media` SwiftUI tab lives under `AssetFox/Sources/CollectMedia/ViewModels` and `AssetFox/Sources/CollectMedia/Views`.
 - The `Ingest` workflow lives under `AssetFox/Sources/Ingest`.
+- The `Media Info` workflow lives under `AssetFox/Sources/MediaInfo`.
 - No Python runtime is embedded in the merged macOS target.
 
 ## Smoke Test

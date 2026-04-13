@@ -55,17 +55,19 @@ struct MediaInfoLibService {
         let general = MediaInfoGeneralMetadata(
             completeName: stringValue(in: generalTrack, keys: ["CompleteName", "Complete name"]),
             containerFormat: stringValue(in: generalTrack, keys: ["Format", "InternetMediaType"]),
+            formatVersion: stringValue(in: generalTrack, keys: ["Format_Version", "Format version"]),
             formatProfile: stringValue(in: generalTrack, keys: ["Format_Profile", "Format profile"]),
+            formatSettings: stringValue(in: generalTrack, keys: ["Format_Settings", "Format settings"]),
             codecID: stringValue(in: generalTrack, keys: ["CodecID", "CodecID/String"]),
             fileSize: fileSizeString(from: generalTrack),
             duration: durationString(from: generalTrack),
             overallBitRateMode: stringValue(in: generalTrack, keys: ["OverallBitRate_Mode", "Overall bit rate mode"]),
-            overallBitRate: bitRateString(from: generalTrack, keys: ["OverallBitRate/String", "OverallBitRate", "BitRate/String", "BitRate"]),
+            overallBitRate: bitRateString(from: generalTrack, keys: ["OverallBitRate", "BitRate"]),
             frameRate: stringValue(in: generalTrack, keys: ["FrameRate/String", "FrameRate"]),
             encodedDate: stringValue(in: generalTrack, keys: ["Encoded_Date", "Encoded date"]),
             taggedDate: stringValue(in: generalTrack, keys: ["Tagged_Date", "Tagged date"]),
-            writingApplication: stringValue(in: generalTrack, keys: ["Encoded_Application", "WritingApplication", "Writing application"]),
-            writingLibrary: stringValue(in: generalTrack, keys: ["Encoded_Library", "WritingLibrary", "Writing library"])
+            writingApplication: stringValue(in: generalTrack, keys: ["Encoded_Application_String", "Encoded_Application", "EncodedApplication", "Encoded application", "WritingApplication", "Writing application"]),
+            writingLibrary: stringValue(in: generalTrack, keys: ["Encoded_Library_String", "Encoded_Library", "EncodedLibrary", "Encoded library", "WritingLibrary", "Writing library"])
         )
 
         return MediaInfoDeepMetadataResult(
@@ -90,18 +92,20 @@ struct MediaInfoLibService {
             codec: stringValue(in: track, keys: ["CodecID/Hint", "CodecID", "CodecID/Info", "Format"]),
             duration: durationString(from: track),
             bitRateMode: stringValue(in: track, keys: ["BitRate_Mode", "Bit rate mode"]),
-            bitRate: bitRateString(from: track, keys: ["BitRate/String", "BitRate"]),
+            bitRate: bitRateString(from: track, keys: ["BitRate"]),
             width: intValue(in: track, keys: ["Width", "Stored_Width"]),
             height: intValue(in: track, keys: ["Height", "Stored_Height"]),
-            displayAspectRatio: stringValue(in: track, keys: ["DisplayAspectRatio/String", "DisplayAspectRatio"]),
+            widthDisplay: stringValue(in: track, keys: ["Width_String", "Width/String"]),
+            heightDisplay: stringValue(in: track, keys: ["Height_String", "Height/String"]),
+            displayAspectRatio: stringValue(in: track, keys: ["DisplayAspectRatio_String", "DisplayAspectRatio/String", "DisplayAspectRatio"]),
             frameRateMode: stringValue(in: track, keys: ["FrameRate_Mode", "Frame rate mode"]),
             frameRate: stringValue(in: track, keys: ["FrameRate/String", "FrameRate"]),
             colorSpace: stringValue(in: track, keys: ["ColorSpace", "colour_space"]),
             chromaSubsampling: stringValue(in: track, keys: ["ChromaSubsampling", "Chroma subsampling"]),
-            scanType: stringValue(in: track, keys: ["ScanType"]),
+            scanType: stringValue(in: track, keys: ["ScanType_String", "ScanType"]),
             bitsPerPixelFrame: stringValue(in: track, keys: ["Bits-(Pixel*Frame)", "Bits__Pixel_Frame_"]),
-            streamSize: stringValue(in: track, keys: ["StreamSize/String", "StreamSize"]),
-            writingLibrary: stringValue(in: track, keys: ["Encoded_Library", "WritingLibrary", "Writing library"]),
+            streamSize: streamSizeString(from: track),
+            writingLibrary: stringValue(in: track, keys: ["Encoded_Library", "EncodedLibrary", "Encoded library", "WritingLibrary", "Writing library"]),
             encodedDate: stringValue(in: track, keys: ["Encoded_Date", "Encoded date"]),
             taggedDate: stringValue(in: track, keys: ["Tagged_Date", "Tagged date"]),
             bitDepth: bitDepthString(from: track, keys: ["BitDepth", "BitDepth/String"]),
@@ -123,13 +127,13 @@ struct MediaInfoLibService {
             codecID: stringValue(in: track, keys: ["CodecID", "CodecID/String", "CodecID/Hint", "CodecID/Info"]),
             codec: stringValue(in: track, keys: ["CodecID/Hint", "CodecID", "CodecID/Info", "Format"]),
             duration: durationString(from: track),
-            bitRateMode: stringValue(in: track, keys: ["BitRate_Mode", "Bit rate mode"]),
-            bitRate: bitRateString(from: track, keys: ["BitRate/String", "BitRate"]),
-            channelCount: stringValue(in: track, keys: ["Channel(s)", "Channel_s_", "Channels"]),
+            bitRateMode: stringValue(in: track, keys: ["BitRate_Mode_String", "BitRate_Mode", "Bit rate mode"]),
+            bitRate: bitRateString(from: track, keys: ["BitRate"]),
+            channelCount: stringValue(in: track, keys: ["Channels_String", "Channel(s)", "Channel_s_", "Channels"]),
             channelLayout: stringValue(in: track, keys: ["ChannelLayout", "ChannelLayout/String", "Channel layout"]),
             sampleRate: stringValue(in: track, keys: ["SamplingRate/String", "SamplingRate"]),
             bitDepth: bitDepthString(from: track, keys: ["BitDepth", "BitDepth/String"]),
-            streamSize: stringValue(in: track, keys: ["StreamSize/String", "StreamSize"]),
+            streamSize: streamSizeString(from: track),
             defaultFlag: stringValue(in: track, keys: ["Default"]),
             alternateGroup: stringValue(in: track, keys: ["AlternateGroup", "Alternate group"]),
             encodedDate: stringValue(in: track, keys: ["Encoded_Date", "Encoded date"]),
@@ -138,7 +142,7 @@ struct MediaInfoLibService {
     }
 
     private func stringValue(in dictionary: [String: Any], keys: [String]) -> String? {
-        for key in keys {
+        for key in expandedKeyVariants(for: keys) {
             if let value = dictionary[key] as? String {
                 let cleaned = cleanedString(value)
                 if cleaned != nil { return cleaned }
@@ -174,7 +178,16 @@ struct MediaInfoLibService {
     }
 
     private func durationString(from dictionary: [String: Any]) -> String? {
-        if let text = stringValue(in: dictionary, keys: ["Duration/String4", "Duration/String3", "Duration/String", "Duration"]) {
+        if let text = stringValue(in: dictionary, keys: [
+            "Duration_String",
+            "Duration/String",
+            "Duration_String1",
+            "Duration_String2",
+            "Duration_String3",
+            "Duration_String4",
+            "Duration_String5",
+            "Duration"
+        ]) {
             if let rawMilliseconds = Double(text), rawMilliseconds > 0 {
                 return formatDuration(milliseconds: rawMilliseconds)
             }
@@ -184,7 +197,8 @@ struct MediaInfoLibService {
     }
 
     private func bitRateString(from dictionary: [String: Any], keys: [String]) -> String? {
-        if let text = stringValue(in: dictionary, keys: keys) {
+        let stringKeys = keys.flatMap { ["\($0)_String", "\($0)/String", $0] }
+        if let text = stringValue(in: dictionary, keys: stringKeys) {
             if let rawBitRate = Double(text), rawBitRate > 0 {
                 return formatBitRate(rawBitRate)
             }
@@ -224,12 +238,65 @@ struct MediaInfoLibService {
     }
 
     private func fileSizeString(from dictionary: [String: Any]) -> String? {
-        if let text = stringValue(in: dictionary, keys: ["FileSize/String", "FileSize"]) {
+        if let text = stringValue(in: dictionary, keys: [
+            "FileSize_String",
+            "FileSize/String",
+            "FileSize_String1",
+            "FileSize_String2",
+            "FileSize_String3",
+            "FileSize_String4",
+            "FileSize_String5",
+            "FileSize"
+        ]) {
             if let rawBytes = Double(text), rawBytes > 0 {
                 return ByteCountFormatter.string(fromByteCount: Int64(rawBytes.rounded()), countStyle: .file)
             }
             return text
         }
         return nil
+    }
+
+    private func streamSizeString(from dictionary: [String: Any]) -> String? {
+        if let text = stringValue(in: dictionary, keys: [
+            "StreamSize_String",
+            "StreamSize/String",
+            "StreamSize_String1",
+            "StreamSize_String2",
+            "StreamSize_String3",
+            "StreamSize_String4",
+            "StreamSize_String5",
+            "StreamSize"
+        ]) {
+            if let rawBytes = Double(text), rawBytes > 0 {
+                return ByteCountFormatter.string(fromByteCount: Int64(rawBytes.rounded()), countStyle: .file)
+            }
+            return text
+        }
+        return nil
+    }
+
+    private func expandedKeyVariants(for keys: [String]) -> [String] {
+        var variants: [String] = []
+
+        for key in keys {
+            variants.append(key)
+
+            let slashToUnderscore = key.replacingOccurrences(of: "/", with: "_")
+            if slashToUnderscore != key {
+                variants.append(slashToUnderscore)
+            }
+
+            let spaceToUnderscore = key.replacingOccurrences(of: " ", with: "_")
+            if spaceToUnderscore != key {
+                variants.append(spaceToUnderscore)
+            }
+
+            let combined = slashToUnderscore.replacingOccurrences(of: " ", with: "_")
+            if combined != slashToUnderscore {
+                variants.append(combined)
+            }
+        }
+
+        return Array(NSOrderedSet(array: variants)) as? [String] ?? variants
     }
 }

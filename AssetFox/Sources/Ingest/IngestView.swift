@@ -11,14 +11,19 @@ struct IngestView: View {
 
     private let primaryColumnWidth: CGFloat = 720
     private let sidebarWidth: CGFloat = 360
+    private let workspaceSpacing: CGFloat = 24
+
+    private var workspaceWidth: CGFloat {
+        primaryColumnWidth + sidebarWidth + workspaceSpacing
+    }
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 28) {
+            VStack(alignment: .leading, spacing: 24) {
                 headerBlock
                 workspaceSection
             }
-            .frame(maxWidth: 1180, alignment: .leading)
+            .frame(maxWidth: workspaceWidth, alignment: .leading)
             .padding(.horizontal, 32)
             .padding(.vertical, 28)
             .frame(maxWidth: .infinity, alignment: .center)
@@ -55,7 +60,7 @@ struct IngestView: View {
 
     private var workspaceSection: some View {
         ViewThatFits(in: .horizontal) {
-            HStack(alignment: .top, spacing: 24) {
+            HStack(alignment: .top, spacing: workspaceSpacing) {
                 VStack(alignment: .leading, spacing: 24) {
                     sourceSection
                     metadataSection
@@ -385,7 +390,7 @@ struct IngestView: View {
                 Button("Choose Report Folder") {
                     viewModel.selectReportDestination()
                 }
-                .buttonStyle(.bordered)
+                .buttonStyle(.borderedProminent)
                 .help("Choose a custom folder for CSV, TXT, and JSON ingest reports.")
 
                 HStack(spacing: 10) {
