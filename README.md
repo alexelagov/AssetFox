@@ -1,6 +1,6 @@
 # AssetFox
 
-Version: `0.2.0`  
+Version: `0.3.0`  
 Channel: `Alpha MVP`
 
 Merged macOS app with four top-level tabs:
