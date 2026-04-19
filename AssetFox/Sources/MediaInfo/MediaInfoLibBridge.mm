@@ -1,38 +1,33 @@
 #import "MediaInfoLibBridge.h"
 
-#include <dlfcn.h>
-#include <cstring>
 #include <string>
-#include <vector>
 #include <cwchar>
 
-namespace {
-using MediaInfo_New_Func = void *(*)(void);
-using MediaInfo_Delete_Func = void (*)(void *);
-using MediaInfo_Open_Func = size_t (*)(void *, const wchar_t *);
-using MediaInfo_Close_Func = void (*)(void *);
-using MediaInfo_Inform_Func = const wchar_t *(*)(void *, size_t);
-using MediaInfo_Option_Func = const wchar_t *(*)(void *, const wchar_t *, const wchar_t *);
-
-struct MediaInfoLibSymbols {
-    void *libraryHandle = nullptr;
-    MediaInfo_New_Func create = nullptr;
-    MediaInfo_Delete_Func destroy = nullptr;
-    MediaInfo_Open_Func open = nullptr;
-    MediaInfo_Close_Func close = nullptr;
-    MediaInfo_Inform_Func inform = nullptr;
-    MediaInfo_Option_Func option = nullptr;
-    bool attempted = false;
-};
-
-static MediaInfoLibSymbols &sharedSymbols() {
-    static MediaInfoLibSymbols symbols;
-    return symbols;
+extern "C" {
+void *MediaInfo_New(void);
+void MediaInfo_Delete(void *);
+size_t MediaInfo_Open(void *, const wchar_t *);
+void MediaInfo_Close(void *);
+const wchar_t *MediaInfo_Inform(void *, size_t);
+const wchar_t *MediaInfo_Option(void *, const wchar_t *, const wchar_t *);
 }
+
+namespace {
+static NSLock *runtimeLock() {
+    static NSLock *lock;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        lock = [NSLock new];
+    });
+    return lock;
+}
+
+static NSString *runtimeLoadError = nil;
 
 static NSArray<NSString *> *candidateLibraryPaths() {
     NSMutableArray<NSString *> *paths = [NSMutableArray array];
     NSString *frameworksPath = NSBundle.mainBundle.privateFrameworksPath;
+    NSString *bundlePath = NSBundle.mainBundle.bundlePath;
 
     if (frameworksPath.length > 0) {
         [paths addObject:[frameworksPath stringByAppendingPathComponent:@"libmediainfo.dylib"]];
@@ -41,7 +36,22 @@ static NSArray<NSString *> *candidateLibraryPaths() {
         [paths addObject:[frameworksPath stringByAppendingPathComponent:@"MediaInfoLib/libmediainfo.0.dylib"]];
     }
 
+    if (bundlePath.length > 0) {
+        NSString *contentsFrameworks = [bundlePath stringByAppendingPathComponent:@"Contents/Frameworks"];
+        [paths addObject:[contentsFrameworks stringByAppendingPathComponent:@"libmediainfo.dylib"]];
+        [paths addObject:[contentsFrameworks stringByAppendingPathComponent:@"libmediainfo.0.dylib"]];
+    }
+
     return paths;
+}
+
+static BOOL bundledRuntimeExists(void) {
+    for (NSString *path in candidateLibraryPaths()) {
+        if ([[NSFileManager defaultManager] fileExistsAtPath:path]) {
+            return YES;
+        }
+    }
+    return NO;
 }
 
 static NSString *stringFromWide(const wchar_t *input) {
@@ -77,46 +87,66 @@ static std::wstring wideFromString(NSString *input) {
     return output;
 }
 
-static BOOL ensureLibraryLoaded(NSMutableArray<NSString *> *errors) {
-    MediaInfoLibSymbols &symbols = sharedSymbols();
-    if (symbols.attempted) {
-        return symbols.libraryHandle != nullptr;
+static void setRuntimeLoadError(NSString *error) {
+    NSLock *lock = runtimeLock();
+    [lock lock];
+    @try {
+        runtimeLoadError = error.length > 0 ? [error copy] : nil;
+    } @finally {
+        [lock unlock];
+    }
+}
+
+static NSString *currentRuntimeLoadError(void) {
+    NSLock *lock = runtimeLock();
+    [lock lock];
+    @try {
+        return runtimeLoadError;
+    } @finally {
+        [lock unlock];
+    }
+}
+
+static BOOL canCreateHandle(NSMutableArray<NSString *> *errors) {
+    if (!bundledRuntimeExists()) {
+        NSString *message = @"Embedded MediaInfoLib runtime was not found in the app bundle Frameworks folder.";
+        setRuntimeLoadError(message);
+        [errors addObject:message];
+        return NO;
     }
 
-    symbols.attempted = true;
-
-    for (NSString *path in candidateLibraryPaths()) {
-        void *handle = dlopen(path.fileSystemRepresentation, RTLD_LAZY | RTLD_LOCAL);
-        if (handle == nullptr) {
-            continue;
-        }
-
-        symbols.create = reinterpret_cast<MediaInfo_New_Func>(dlsym(handle, "MediaInfo_New"));
-        symbols.destroy = reinterpret_cast<MediaInfo_Delete_Func>(dlsym(handle, "MediaInfo_Delete"));
-        symbols.open = reinterpret_cast<MediaInfo_Open_Func>(dlsym(handle, "MediaInfo_Open"));
-        symbols.close = reinterpret_cast<MediaInfo_Close_Func>(dlsym(handle, "MediaInfo_Close"));
-        symbols.inform = reinterpret_cast<MediaInfo_Inform_Func>(dlsym(handle, "MediaInfo_Inform"));
-        symbols.option = reinterpret_cast<MediaInfo_Option_Func>(dlsym(handle, "MediaInfo_Option"));
-
-        if (symbols.create != nullptr &&
-            symbols.destroy != nullptr &&
-            symbols.open != nullptr &&
-            symbols.close != nullptr &&
-            symbols.inform != nullptr &&
-            symbols.option != nullptr) {
-            symbols.libraryHandle = handle;
-            return YES;
-        }
-
-        dlclose(handle);
+    void *handle = MediaInfo_New();
+    if (handle == nullptr) {
+        NSString *message = @"MediaInfoLib is bundled, but the runtime did not create an inspection handle.";
+        setRuntimeLoadError(message);
+        [errors addObject:message];
+        return NO;
     }
 
-    [errors addObject:@"Embedded MediaInfoLib runtime was not found in the app bundle Frameworks folder."];
-    return NO;
+    MediaInfo_Delete(handle);
+    setRuntimeLoadError(nil);
+    return YES;
 }
 }
 
 @implementation MediaInfoLibBridge
+
++ (NSDictionary<NSString *, id> *)runtimeStatus {
+    NSMutableArray<NSString *> *errors = [NSMutableArray array];
+    BOOL bundled = bundledRuntimeExists();
+    BOOL loaded = canCreateHandle(errors);
+
+    NSString *lastError = currentRuntimeLoadError();
+    if (!loaded && errors.count == 0 && lastError.length > 0) {
+        [errors addObject:lastError];
+    }
+
+    return @{
+        @"bundled": @(bundled),
+        @"loaded": @(loaded),
+        @"errors": errors
+    };
+}
 
 + (NSDictionary<NSString *, id> *)inspectFileAtPath:(NSString *)path {
     NSMutableArray<NSString *> *warnings = [NSMutableArray array];
@@ -140,7 +170,7 @@ static BOOL ensureLibraryLoaded(NSMutableArray<NSString *> *errors) {
         };
     }
 
-    if (!ensureLibraryLoaded(errors)) {
+    if (!canCreateHandle(errors)) {
         return @{
             @"status": @"libraryUnavailable",
             @"warnings": warnings,
@@ -148,10 +178,11 @@ static BOOL ensureLibraryLoaded(NSMutableArray<NSString *> *errors) {
         };
     }
 
-    MediaInfoLibSymbols &symbols = sharedSymbols();
-    void *handle = symbols.create();
+    void *handle = MediaInfo_New();
     if (handle == nullptr) {
-        [errors addObject:@"MediaInfoLib failed to create an inspection handle."];
+        NSString *message = @"MediaInfoLib failed to create an inspection handle.";
+        setRuntimeLoadError(message);
+        [errors addObject:message];
         return @{
             @"status": @"error",
             @"warnings": warnings,
@@ -163,13 +194,13 @@ static BOOL ensureLibraryLoaded(NSMutableArray<NSString *> *errors) {
     const std::wstring completeOption = wideFromString(@"1");
     const std::wstring filePath = wideFromString(path);
 
-    symbols.option(handle, L"Output", outputOption.c_str());
-    symbols.option(handle, L"Complete", completeOption.c_str());
+    MediaInfo_Option(handle, L"Output", outputOption.c_str());
+    MediaInfo_Option(handle, L"Complete", completeOption.c_str());
 
-    size_t openResult = symbols.open(handle, filePath.c_str());
+    size_t openResult = MediaInfo_Open(handle, filePath.c_str());
     if (openResult == 0) {
-        symbols.close(handle);
-        symbols.destroy(handle);
+        MediaInfo_Close(handle);
+        MediaInfo_Delete(handle);
         [errors addObject:@"MediaInfoLib could not open this file."];
         return @{
             @"status": @"error",
@@ -178,9 +209,9 @@ static BOOL ensureLibraryLoaded(NSMutableArray<NSString *> *errors) {
         };
     }
 
-    NSString *json = stringFromWide(symbols.inform(handle, 0));
-    symbols.close(handle);
-    symbols.destroy(handle);
+    NSString *json = stringFromWide(MediaInfo_Inform(handle, 0));
+    MediaInfo_Close(handle);
+    MediaInfo_Delete(handle);
 
     if (json.length == 0) {
         [errors addObject:@"MediaInfoLib returned no metadata payload for this file."];

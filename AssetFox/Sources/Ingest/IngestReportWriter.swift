@@ -103,7 +103,7 @@ struct IngestReportWriter {
         let data = try encoder.encode(payload)
         try data.write(to: jsonURL, options: .atomic)
 
-        let csv = buildCSV(fileResults: fileResults)
+        let csv = buildCSV(fileResults: fileResults, summary: summary)
         try csv.write(to: csvURL, atomically: true, encoding: .utf8)
 
         let text = buildTextSummary(
@@ -194,8 +194,10 @@ struct IngestReportWriter {
         }
     }
 
-    private func buildCSV(fileResults: [IngestFileVerificationRecord]) -> String {
+    private func buildCSV(fileResults: [IngestFileVerificationRecord], summary: IngestReportSummary) -> String {
+        let ingestDate = formattedLocalReportTimestamp(summary.finishedAt ?? summary.startedAt ?? Date())
         let header = [
+            "ingest_date",
             "relative_path",
             "source_path",
             "destination_path",
@@ -206,6 +208,7 @@ struct IngestReportWriter {
 
         let rows = fileResults.map { record in
             [
+                ingestDate,
                 record.relativePath,
                 record.sourcePath,
                 record.destinationPath,
@@ -261,8 +264,8 @@ struct IngestReportWriter {
             "Checksum Verification: \(settings.checksumVerification)",
             "Preserve Folder Structure: \(settings.preserveFolderStructure ? "Yes" : "No")",
             "Reports Enabled: \(settings.createReport ? "Yes" : "No")",
-            "Started: \(summary.startedAt?.ISO8601Format() ?? "Unavailable")",
-            "Finished: \(summary.finishedAt?.ISO8601Format() ?? "Unavailable")",
+            "Started: \(summary.startedAt.map(formattedLocalReportTimestamp) ?? "Unavailable")",
+            "Finished: \(summary.finishedAt.map(formattedLocalReportTimestamp) ?? "Unavailable")",
             "Elapsed: \(summary.elapsedTime)s",
             "",
             "Summary Counts",
@@ -286,6 +289,14 @@ struct IngestReportWriter {
         }
 
         return (lines + warningLines + errorHeader + errorLines + fileHeader + fileLines).joined(separator: "\n")
+    }
+
+    private func formattedLocalReportTimestamp(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = .autoupdatingCurrent
+        formatter.timeZone = .autoupdatingCurrent
+        formatter.dateFormat = "yyyy-MM-dd HH:mm:ss z"
+        return formatter.string(from: date)
     }
 }
 

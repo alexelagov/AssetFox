@@ -3,7 +3,7 @@ import Foundation
 struct MediaInfoLibService {
     enum Availability {
         case metadata(MediaInfoDeepMetadataResult)
-        case libraryUnavailable
+        case libraryUnavailable([String])
         case failed([String])
     }
 
@@ -21,7 +21,7 @@ struct MediaInfoLibService {
 
         switch status {
         case "libraryUnavailable":
-            return .libraryUnavailable
+            return .libraryUnavailable(errors)
         case "success":
             guard let json = payload["json"] as? String,
                   let data = json.data(using: .utf8),

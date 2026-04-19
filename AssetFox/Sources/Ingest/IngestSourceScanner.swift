@@ -21,9 +21,7 @@ struct IngestSourceScanner {
         sourceURL: URL,
         progress: (@Sendable (IngestSourceScanResult) async -> Void)? = nil
     ) async throws -> IngestSourceScanResult {
-        try await Task.detached(priority: .userInitiated) {
-            try await scanSynchronously(sourceURL: sourceURL, progress: progress)
-        }.value
+        try await scanSynchronously(sourceURL: sourceURL, progress: progress)
     }
 
     private func scanSynchronously(

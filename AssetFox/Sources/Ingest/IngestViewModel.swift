@@ -1,4 +1,5 @@
 import AppKit
+import Darwin
 import Observation
 
 enum IngestJobStatus: String {
@@ -425,6 +426,7 @@ final class IngestViewModel {
                     destinationURL: destinationURL,
                     reportWriter: reportWriter
                 )
+                self.copyTask = nil
             } catch is CancellationError {
                 self.elapsedTime = self.ingestStartedAt.map { Date().timeIntervalSince($0) } ?? 0
                 self.lastMeaningfulError = "The ingest job was cancelled."
@@ -436,6 +438,7 @@ final class IngestViewModel {
                     destinationURL: destinationURL,
                     reportWriter: reportWriter
                 )
+                self.copyTask = nil
             } catch {
                 if let partialSnapshot = (error as NSError).userInfo["partialSnapshot"] as? IngestPartialRunSnapshot {
                     self.applyPartialSnapshot(partialSnapshot)
@@ -452,6 +455,7 @@ final class IngestViewModel {
                     destinationURL: destinationURL,
                     reportWriter: reportWriter
                 )
+                self.copyTask = nil
             }
         }
     }
@@ -485,16 +489,19 @@ final class IngestViewModel {
                 self.sourceScanError = result.warnings.last
                 self.refreshPreflight()
                 self.workflowState = self.deriveNonRunningState()
+                self.sourceScanTask = nil
             } catch is CancellationError {
                 self.sourceScanError = "Source scan was cancelled."
                 self.lastMeaningfulError = self.sourceScanError
                 self.refreshPreflight()
                 self.workflowState = self.deriveNonRunningState(cancelled: true)
+                self.sourceScanTask = nil
             } catch {
                 self.sourceScanError = error.localizedDescription
                 self.lastMeaningfulError = error.localizedDescription
                 self.refreshPreflight()
                 self.workflowState = .failed
+                self.sourceScanTask = nil
             }
         }
     }
@@ -559,36 +566,21 @@ final class IngestViewModel {
                 ))
             }
 
-            do {
-                let values = try destinationURL.resourceValues(forKeys: [
-                    .volumeAvailableCapacityForImportantUsageKey,
-                    .volumeAvailableCapacityKey
-                ])
+            if let freeBytes = availableCapacity(for: destinationURL) {
+                destinationFreeBytes = freeBytes
 
-                let freeBytes = values.volumeAvailableCapacityForImportantUsage
-                    ?? values.volumeAvailableCapacity.map(Int64.init)
-
-                if let freeBytes {
-                    destinationFreeBytes = Int64(freeBytes)
-
-                    if workflowState != .scanning,
-                       scanResult.totalBytes > 0,
-                       Int64(freeBytes) < scanResult.totalBytes {
-                        issues.append(IngestPreflightIssue(
-                            severity: .error,
-                            message: "The destination does not have enough free space for the scanned source."
-                        ))
-                    }
-                } else if destinationURL != sourceURL {
+                if workflowState != .scanning,
+                   scanResult.totalBytes > 0,
+                   freeBytes < scanResult.totalBytes {
                     issues.append(IngestPreflightIssue(
-                        severity: .warning,
-                        message: "Free space could not be determined for the selected destination."
+                        severity: .error,
+                        message: "The destination does not have enough free space for the scanned source."
                     ))
                 }
-            } catch {
+            } else if destinationURL != sourceURL {
                 issues.append(IngestPreflightIssue(
                     severity: .warning,
-                    message: "Free space could not be checked for the selected destination."
+                    message: "Free space could not be determined for the selected destination."
                 ))
             }
         }
@@ -730,6 +722,73 @@ final class IngestViewModel {
         panel.allowsMultipleSelection = false
         panel.directoryURL = initialURL
         return panel
+    }
+
+    private func availableCapacity(for destinationURL: URL) -> Int64? {
+        let keys: Set<URLResourceKey> = [
+            .volumeAvailableCapacityForImportantUsageKey,
+            .volumeAvailableCapacityKey,
+            .volumeIsLocalKey
+        ]
+
+        var resourceCandidate: Int64?
+        var isLocalVolume = true
+
+        if let values = try? destinationURL.resourceValues(forKeys: keys) {
+            isLocalVolume = values.volumeIsLocal ?? true
+
+            if let importantValue = values.volumeAvailableCapacityForImportantUsage {
+                let important = Int64(importantValue)
+                if important > 0 { return important }
+                resourceCandidate = important
+            }
+
+            if let availableValue = values.volumeAvailableCapacity {
+                let available = Int64(availableValue)
+                if available > 0 { return available }
+                resourceCandidate = resourceCandidate ?? available
+            }
+        }
+
+        if let existingPath = nearestExistingFilesystemPath(for: destinationURL) {
+            if let attrs = try? FileManager.default.attributesOfFileSystem(forPath: existingPath.path),
+               let freeSize = attrs[.systemFreeSize] as? NSNumber {
+                let candidate = freeSize.int64Value
+                if candidate > 0 { return candidate }
+                resourceCandidate = resourceCandidate ?? candidate
+            }
+
+            var stats = statfs()
+            if existingPath.withUnsafeFileSystemRepresentation({ fsRep in
+                guard let fsRep else { return false }
+                return statfs(fsRep, &stats) == 0
+            }) {
+                let candidate = Int64(stats.f_bavail) * Int64(stats.f_bsize)
+                if candidate > 0 { return candidate }
+                resourceCandidate = resourceCandidate ?? candidate
+            }
+        }
+
+        if isLocalVolume {
+            return resourceCandidate
+        }
+
+        return resourceCandidate == 0 ? nil : resourceCandidate
+    }
+
+    private func nearestExistingFilesystemPath(for url: URL) -> URL? {
+        let fileManager = FileManager.default
+        var candidate = url.standardizedFileURL
+
+        while !fileManager.fileExists(atPath: candidate.path) {
+            let parent = candidate.deletingLastPathComponent()
+            if parent.path == candidate.path {
+                return nil
+            }
+            candidate = parent
+        }
+
+        return candidate
     }
 
     private func restorePersistedSelections() {

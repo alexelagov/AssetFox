@@ -38,66 +38,66 @@ struct MediaInfoInspector {
         let values = try? url.resourceValues(forKeys: [.contentTypeKey])
         let contentType = values?.contentType
         let rawFamily = rawFamily(for: url)
-
-        let baseResult: MediaInfoInspectionResult
-        if contentType?.conforms(to: .image) == true {
-            baseResult = inspectImage(url: url, contentType: contentType, rawFamily: rawFamily)
-        } else if contentType?.conforms(to: .movie) == true || contentType?.conforms(to: .video) == true || contentType?.conforms(to: .audio) == true || rawFamily != nil {
-            baseResult = await inspectAVAsset(url: url, contentType: contentType, rawFamily: rawFamily)
-        } else {
-            baseResult = MediaInfoInspectionResult(
-                deepMetadata: nil,
-                rawFamily: rawFamily,
-                container: contentType?.localizedDescription ?? url.pathExtension.uppercased().nonEmpty,
-                profile: nil,
-                codec: nil,
-                resolution: nil,
-                frameRate: nil,
-                duration: nil,
-                timecode: nil,
-                overallBitRate: nil,
-                encodedDate: nil,
-                taggedDate: nil,
-                writingApplication: nil,
-                writingLibrary: nil,
-                bitDepth: nil,
-                pixelFormat: nil,
-                colorSpace: nil,
-                transferFunction: nil,
-                colorPrimaries: nil,
-                colorRange: nil,
-                audioSummary: nil,
-                videoTrackCount: nil,
-                audioTrackCount: nil,
-                metadataSource: "Filesystem",
-                warnings: ["No native media parser is available for this file type yet."]
-            )
-        }
-
         let mediaInfoStatus = await MediaInfoLibService().inspect(url: url)
 
-        let enrichedWithMediaInfo: MediaInfoInspectionResult
+        var baseResult = filesystemBaseResult(url: url, contentType: contentType, rawFamily: rawFamily)
+
         switch mediaInfoStatus {
         case .metadata(let metadata):
-            enrichedWithMediaInfo = mergeWithMediaInfoLib(baseResult, metadata: metadata, rawFamily: rawFamily)
-        case .failed:
-            enrichedWithMediaInfo = baseResult
-        case .libraryUnavailable:
-            enrichedWithMediaInfo = baseResult
+            baseResult = mergeWithMediaInfoLib(baseResult, metadata: metadata, rawFamily: rawFamily)
+        case .failed, .libraryUnavailable:
+            break
         }
 
-        let merged = mergeWithFFProbeIfAvailable(
-            enrichedWithMediaInfo,
-            url: url,
-            rawFamily: rawFamily,
-            allowFallback: true
-        )
+        if contentType?.conforms(to: .image) == true {
+            baseResult = mergeImageIOIfNeeded(baseResult, url: url, contentType: contentType, rawFamily: rawFamily)
+        } else if contentType?.conforms(to: .movie) == true || contentType?.conforms(to: .video) == true || contentType?.conforms(to: .audio) == true || rawFamily != nil {
+            let avResult = await inspectAVAsset(url: url, contentType: contentType, rawFamily: rawFamily)
+            baseResult = mergeMissingFields(from: avResult, into: baseResult)
+        }
+
+        let merged = mergeWithFFProbeIfAvailable(baseResult, url: url, rawFamily: rawFamily, allowFallback: true)
         return addAvailabilityWarnings(
             to: merged,
             rawFamily: rawFamily,
             contentType: contentType,
             mediaInfoStatus: mediaInfoStatus
         )
+    }
+
+    private func filesystemBaseResult(url: URL, contentType: UTType?, rawFamily: String?) -> MediaInfoInspectionResult {
+        MediaInfoInspectionResult(
+            deepMetadata: nil,
+            rawFamily: rawFamily,
+            container: contentType?.localizedDescription ?? url.pathExtension.uppercased().nonEmpty,
+            profile: nil,
+            codec: nil,
+            resolution: nil,
+            frameRate: nil,
+            duration: nil,
+            timecode: nil,
+            overallBitRate: nil,
+            encodedDate: nil,
+            taggedDate: nil,
+            writingApplication: nil,
+            writingLibrary: nil,
+            bitDepth: nil,
+            pixelFormat: nil,
+            colorSpace: nil,
+            transferFunction: nil,
+            colorPrimaries: nil,
+            colorRange: nil,
+            audioSummary: nil,
+            videoTrackCount: nil,
+            audioTrackCount: nil,
+            metadataSource: "Filesystem",
+            warnings: []
+        )
+    }
+
+    private func mergeImageIOIfNeeded(_ native: MediaInfoInspectionResult, url: URL, contentType: UTType?, rawFamily: String?) -> MediaInfoInspectionResult {
+        let imageResult = inspectImage(url: url, contentType: contentType, rawFamily: rawFamily)
+        return mergeMissingFields(from: imageResult, into: native)
     }
 
     private func inspectImage(url: URL, contentType: UTType?, rawFamily: String?) -> MediaInfoInspectionResult {
@@ -313,6 +313,42 @@ struct MediaInfoInspector {
         merged.metadataSource = merged.metadataSource == "Filesystem" ? metadata.source.rawValue : "\(merged.metadataSource) + \(metadata.source.rawValue)"
         merged.warnings.append(contentsOf: metadata.warnings)
         merged.warnings.append(contentsOf: metadata.errors)
+        return merged
+    }
+
+    private func mergeMissingFields(from fallback: MediaInfoInspectionResult, into primary: MediaInfoInspectionResult) -> MediaInfoInspectionResult {
+        var merged = primary
+
+        merged.rawFamily = merged.rawFamily ?? fallback.rawFamily
+        merged.container = merged.container ?? fallback.container
+        merged.profile = merged.profile ?? fallback.profile
+        merged.codec = merged.codec ?? fallback.codec
+        merged.resolution = merged.resolution ?? fallback.resolution
+        merged.frameRate = merged.frameRate ?? fallback.frameRate
+        merged.duration = merged.duration ?? fallback.duration
+        merged.timecode = merged.timecode ?? fallback.timecode
+        merged.overallBitRate = merged.overallBitRate ?? fallback.overallBitRate
+        merged.encodedDate = merged.encodedDate ?? fallback.encodedDate
+        merged.taggedDate = merged.taggedDate ?? fallback.taggedDate
+        merged.writingApplication = merged.writingApplication ?? fallback.writingApplication
+        merged.writingLibrary = merged.writingLibrary ?? fallback.writingLibrary
+        merged.bitDepth = merged.bitDepth ?? fallback.bitDepth
+        merged.pixelFormat = merged.pixelFormat ?? fallback.pixelFormat
+        merged.colorSpace = merged.colorSpace ?? fallback.colorSpace
+        merged.transferFunction = merged.transferFunction ?? fallback.transferFunction
+        merged.colorPrimaries = merged.colorPrimaries ?? fallback.colorPrimaries
+        merged.colorRange = merged.colorRange ?? fallback.colorRange
+        merged.audioSummary = merged.audioSummary ?? fallback.audioSummary
+        merged.videoTrackCount = merged.videoTrackCount ?? fallback.videoTrackCount
+        merged.audioTrackCount = merged.audioTrackCount ?? fallback.audioTrackCount
+
+        if merged.metadataSource == "Filesystem", fallback.metadataSource != "Filesystem" {
+            merged.metadataSource = fallback.metadataSource
+        } else if fallback.metadataSource != "Filesystem", !merged.metadataSource.localizedCaseInsensitiveContains(fallback.metadataSource) {
+            merged.metadataSource = "\(merged.metadataSource) + \(fallback.metadataSource)"
+        }
+
+        merged.warnings.append(contentsOf: fallback.warnings)
         return merged
     }
 
@@ -608,8 +644,17 @@ struct MediaInfoInspector {
             updated.warnings.append("ffprobe is not available on this Mac, so RAW/container/codec fields may be incomplete.")
         }
 
-        if case .failed(let errors) = mediaInfoStatus {
+        switch mediaInfoStatus {
+        case .failed(let errors):
             updated.warnings.append(contentsOf: errors)
+        case .libraryUnavailable(let errors):
+            if errors.isEmpty {
+                updated.warnings.append("Embedded MediaInfoLib is bundled but was not loaded on this Mac.")
+            } else {
+                updated.warnings.append(contentsOf: errors)
+            }
+        case .metadata:
+            break
         }
 
         updated.warnings.removeAll { warning in

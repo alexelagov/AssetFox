@@ -1,4 +1,5 @@
 import CryptoKit
+import Darwin
 import Foundation
 
 enum IngestConflictMode: String, CaseIterable, Identifiable {
@@ -105,16 +106,14 @@ struct IngestCopier {
         preserveFolderStructure: Bool,
         progress: @escaping @Sendable (IngestCopyProgress) async -> Void
     ) async throws -> IngestCopyResult {
-        try await Task.detached(priority: .userInitiated) {
-            try await copySynchronously(
-                sourceURL: sourceURL,
-                destinationURL: destinationURL,
-                conflictMode: conflictMode,
-                verificationEnabled: verificationEnabled,
-                preserveFolderStructure: preserveFolderStructure,
-                progress: progress
-            )
-        }.value
+        try await copySynchronously(
+            sourceURL: sourceURL,
+            destinationURL: destinationURL,
+            conflictMode: conflictMode,
+            verificationEnabled: verificationEnabled,
+            preserveFolderStructure: preserveFolderStructure,
+            progress: progress
+        )
     }
 
     private func copySynchronously(
@@ -704,18 +703,70 @@ struct IngestCopier {
     }
 
     private func availableCapacity(for destinationURL: URL) -> Int64? {
-        do {
-            let values = try destinationURL.resourceValues(forKeys: [
-                .volumeAvailableCapacityForImportantUsageKey,
-                .volumeAvailableCapacityKey
-            ])
-            if let important = values.volumeAvailableCapacityForImportantUsage {
-                return Int64(important)
+        let keys: Set<URLResourceKey> = [
+            .volumeAvailableCapacityForImportantUsageKey,
+            .volumeAvailableCapacityKey,
+            .volumeIsLocalKey
+        ]
+
+        var resourceCandidate: Int64?
+        var isLocalVolume = true
+
+        if let values = try? destinationURL.resourceValues(forKeys: keys) {
+            isLocalVolume = values.volumeIsLocal ?? true
+
+            if let importantValue = values.volumeAvailableCapacityForImportantUsage {
+                let important = Int64(importantValue)
+                if important > 0 { return important }
+                resourceCandidate = important
             }
-            return values.volumeAvailableCapacity.map(Int64.init)
-        } catch {
-            return nil
+
+            if let availableValue = values.volumeAvailableCapacity {
+                let available = Int64(availableValue)
+                if available > 0 { return available }
+                resourceCandidate = resourceCandidate ?? available
+            }
         }
+
+        if let existingPath = nearestExistingFilesystemPath(for: destinationURL) {
+            if let attrs = try? FileManager.default.attributesOfFileSystem(forPath: existingPath.path),
+               let freeSize = attrs[.systemFreeSize] as? NSNumber {
+                let candidate = freeSize.int64Value
+                if candidate > 0 { return candidate }
+                resourceCandidate = resourceCandidate ?? candidate
+            }
+
+            var stats = statfs()
+            if existingPath.withUnsafeFileSystemRepresentation({ fsRep in
+                guard let fsRep else { return false }
+                return statfs(fsRep, &stats) == 0
+            }) {
+                let candidate = Int64(stats.f_bavail) * Int64(stats.f_bsize)
+                if candidate > 0 { return candidate }
+                resourceCandidate = resourceCandidate ?? candidate
+            }
+        }
+
+        if isLocalVolume {
+            return resourceCandidate
+        }
+
+        return resourceCandidate == 0 ? nil : resourceCandidate
+    }
+
+    private func nearestExistingFilesystemPath(for url: URL) -> URL? {
+        let fileManager = FileManager.default
+        var candidate = url.standardizedFileURL
+
+        while !fileManager.fileExists(atPath: candidate.path) {
+            let parent = candidate.deletingLastPathComponent()
+            if parent.path == candidate.path {
+                return nil
+            }
+            candidate = parent
+        }
+
+        return candidate
     }
 
     private func buildProgress(
