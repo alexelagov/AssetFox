@@ -5,3 +5,9 @@ build/
 xcuserdata/
 *.xcuserstate
 .tmp_*
+*.app/
+*.zip
+*.pkg
+*.dmg
+*.xcworkspace/xcuserdata/
+*.xcodeproj/xcuserdata/

@@ -6,7 +6,7 @@ This project is prepared to ship a prebuilt MediaInfoLib runtime inside the macO
 
 Put the vendor-provided dynamic library here before building a distributable app:
 
-`/Users/mainfolder/Desktop/Job/AI/Collect_App/MediaToolkit/AssetFox/Vendor/MediaInfoLib/libmediainfo.dylib`
+`AssetFox/Vendor/MediaInfoLib/libmediainfo.dylib`
 
 An alternate versioned filename is also accepted:
 
