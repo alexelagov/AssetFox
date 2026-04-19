@@ -28,7 +28,7 @@ struct IngestReportWriter {
         jobStatus: IngestJobStatus,
         metadata: IngestJobMetadata,
         settings: IngestJobSettings,
-        sourceURL: URL?,
+        sourceURLs: [URL],
         summary: IngestReportSummary,
         fileResults: [IngestFileVerificationRecord],
         warnings: [String],
@@ -54,7 +54,8 @@ struct IngestReportWriter {
                 reelName: metadata.reelName,
                 priority: metadata.priority
             ),
-            sourcePath: sourceURL?.path,
+            sourcePath: sourceURLs.first?.path,
+            sourcePaths: sourceURLs.map(\.path),
             destinationPath: destinationURL.path,
             requestedReportRootPath: preferredReportRootURL?.path,
             reportDirectoryPath: jobDirectory.path,
@@ -81,7 +82,11 @@ struct IngestReportWriter {
                 verifiedFiles: summary.verifiedFiles,
                 skippedFiles: summary.skippedFiles,
                 failedFiles: summary.failedFiles,
-                mismatches: summary.mismatches
+                mismatches: summary.mismatches,
+                sourceSizeBytes: summary.sourceSizeBytes,
+                sourceSizeGB: gigabytes(from: summary.sourceSizeBytes),
+                destinationSizeBytes: summary.destinationSizeBytes,
+                destinationSizeGB: gigabytes(from: summary.destinationSizeBytes)
             ),
             fileResults: fileResults.map {
                 .init(
@@ -89,6 +94,9 @@ struct IngestReportWriter {
                     sourcePath: $0.sourcePath,
                     destinationPath: $0.destinationPath,
                     fileSize: $0.fileSize,
+                    fileSizeGB: gigabytes(from: $0.fileSize),
+                    destinationFileSize: $0.destinationFileSize,
+                    destinationFileSizeGB: $0.destinationFileSize.map { gigabytes(from: $0) },
                     status: reportStatus(for: $0.state),
                     detail: reportDetail(for: $0.state)
                 )
@@ -110,7 +118,7 @@ struct IngestReportWriter {
             status: jobStatus,
             metadata: metadata,
             settings: settings,
-            sourceURL: sourceURL,
+            sourceURLs: sourceURLs,
             destinationURL: destinationURL,
             reportDirectoryURL: jobDirectory,
             csvURL: csvURL,
@@ -167,7 +175,7 @@ struct IngestReportWriter {
             .replacingOccurrences(of: "[^a-z0-9]+", with: "-", options: .regularExpression)
             .trimmingCharacters(in: CharacterSet(charactersIn: "-"))
         let name = slug.isEmpty ? "ingest-job" : slug
-        return "\(timestamp)-\(name)"
+        return "\(name)-\(timestamp)"
     }
 
     private func reportStatus(for state: IngestFileVerificationState) -> String {
@@ -202,6 +210,9 @@ struct IngestReportWriter {
             "source_path",
             "destination_path",
             "file_size_bytes",
+            "file_size_gb",
+            "destination_file_size_bytes",
+            "destination_file_size_gb",
             "status",
             "detail"
         ]
@@ -213,6 +224,9 @@ struct IngestReportWriter {
                 record.sourcePath,
                 record.destinationPath,
                 String(record.fileSize),
+                formattedGigabytes(record.fileSize),
+                record.destinationFileSize.map(String.init) ?? "",
+                record.destinationFileSize.map(formattedGigabytes) ?? "",
                 reportStatus(for: record.state),
                 reportDetail(for: record.state) ?? ""
             ]
@@ -235,7 +249,7 @@ struct IngestReportWriter {
         status: IngestJobStatus,
         metadata: IngestJobMetadata,
         settings: IngestJobSettings,
-        sourceURL: URL?,
+        sourceURLs: [URL],
         destinationURL: URL,
         reportDirectoryURL: URL,
         csvURL: URL,
@@ -246,6 +260,7 @@ struct IngestReportWriter {
         warnings: [String],
         errors: [String]
     ) -> String {
+        let sourceLines = sourceURLs.isEmpty ? ["- Unavailable"] : sourceURLs.map { "- \($0.path)" }
         let lines: [String] = [
             "AssetFox Ingest Report",
             "",
@@ -253,7 +268,9 @@ struct IngestReportWriter {
             "Job Name: \(metadata.jobName)",
             "Reel Name: \(metadata.reelName)",
             "Priority: \(metadata.priority)",
-            "Source: \(sourceURL?.path ?? "Unavailable")",
+            "Source Count: \(sourceURLs.count)",
+            "Sources:",
+        ] + sourceLines + [
             "Destination: \(destinationURL.path)",
             "Requested Report Root: \(settings.requestedReportRootPath ?? "Destination default")",
             "Report Directory: \(reportDirectoryURL.path)",
@@ -275,6 +292,8 @@ struct IngestReportWriter {
             "Skipped Files: \(summary.skippedFiles)",
             "Failed Files: \(summary.failedFiles)",
             "Mismatches: \(summary.mismatches)",
+            "Source Size on Disk: \(formattedGigabytes(summary.sourceSizeBytes)) GB",
+            "Destination Size on Disk: \(formattedGigabytes(summary.destinationSizeBytes)) GB",
             "",
             "Warnings:",
         ]
@@ -285,10 +304,19 @@ struct IngestReportWriter {
         let fileHeader = ["", "File Results:"]
         let fileLines = fileResults.isEmpty ? ["- None"] : fileResults.map { record in
             let detail = reportDetail(for: record.state).map { " (\($0))" } ?? ""
-            return "- [\(reportStatus(for: record.state))] \(record.relativePath)\(detail)"
+            let destinationSize = record.destinationFileSize.map { "\(formattedGigabytes($0)) GB" } ?? "Unavailable"
+            return "- [\(reportStatus(for: record.state))] \(record.relativePath) - source \(formattedGigabytes(record.fileSize)) GB, destination \(destinationSize)\(detail)"
         }
 
         return (lines + warningLines + errorHeader + errorLines + fileHeader + fileLines).joined(separator: "\n")
+    }
+
+    private func gigabytes(from bytes: Int64) -> Double {
+        Double(bytes) / 1_000_000_000
+    }
+
+    private func formattedGigabytes(_ bytes: Int64) -> String {
+        String(format: "%.3f", gigabytes(from: bytes))
     }
 
     private func formattedLocalReportTimestamp(_ date: Date) -> String {
@@ -307,6 +335,8 @@ struct IngestReportSummary {
     let skippedFiles: Int
     let failedFiles: Int
     let mismatches: Int
+    let sourceSizeBytes: Int64
+    let destinationSizeBytes: Int64
     let elapsedTime: TimeInterval
     let startedAt: Date?
     let finishedAt: Date?
@@ -317,6 +347,7 @@ private struct CodableIngestReport: Codable {
     let status: String
     let jobMetadata: CodableJobMetadata
     let sourcePath: String?
+    let sourcePaths: [String]
     let destinationPath: String
     let requestedReportRootPath: String?
     let reportDirectoryPath: String
@@ -361,6 +392,10 @@ private struct CodableIngestReport: Codable {
         let skippedFiles: Int
         let failedFiles: Int
         let mismatches: Int
+        let sourceSizeBytes: Int64
+        let sourceSizeGB: Double
+        let destinationSizeBytes: Int64
+        let destinationSizeGB: Double
     }
 
     struct CodableFileResult: Codable {
@@ -368,6 +403,9 @@ private struct CodableIngestReport: Codable {
         let sourcePath: String
         let destinationPath: String
         let fileSize: Int64
+        let fileSizeGB: Double
+        let destinationFileSize: Int64?
+        let destinationFileSizeGB: Double?
         let status: String
         let detail: String?
     }

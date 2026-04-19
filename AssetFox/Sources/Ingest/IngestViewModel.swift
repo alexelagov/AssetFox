@@ -26,11 +26,13 @@ enum IngestWorkflowState: String {
 final class IngestViewModel {
     private enum PersistedPathKey {
         static let source = "assetfox.ingest.sourcePath"
+        static let sourcePaths = "assetfox.ingest.sourcePaths"
         static let destination = "assetfox.ingest.destinationPath"
         static let reportDestination = "assetfox.ingest.reportDestinationPath"
     }
 
-    var sourceURL: URL?
+    var sourceURLs: [URL] = []
+    var sourceURL: URL? { sourceURLs.first }
     var destinationURL: URL?
     var reportDestinationURL: URL?
     var conflictMode: IngestConflictMode = .skipExisting
@@ -101,10 +103,10 @@ final class IngestViewModel {
     }
 
     func selectSource() {
-        let panel = configuredFolderPanel(title: "Select ingest source", initialURL: sourceURL)
+        let panel = configuredSourcePanel(title: "Select ingest sources", initialURL: sourceURL)
 
         if panel.runModal() == .OK {
-            setSourceURL(panel.url)
+            setSourceURLs(panel.urls)
             resetRunState(clearReports: true)
             refreshPreflight()
             startSourceScan()
@@ -141,8 +143,9 @@ final class IngestViewModel {
         let fileManager = FileManager.default
         var didReset = false
 
-        if let sourceURL, !fileManager.fileExists(atPath: sourceURL.path) {
-            setSourceURL(nil)
+        let existingSourceURLs = sourceURLs.filter { fileManager.fileExists(atPath: $0.path) }
+        if existingSourceURLs.count != sourceURLs.count {
+            setSourceURLs(existingSourceURLs)
             scanResult = .empty
             sourceScanError = nil
             didReset = true
@@ -167,6 +170,22 @@ final class IngestViewModel {
 
     func compactPath(_ url: URL?) -> String? {
         url?.path.replacingOccurrences(of: NSHomeDirectory(), with: "~")
+    }
+
+    var hasSelectedSources: Bool {
+        !sourceURLs.isEmpty
+    }
+
+    var sourceSelectionLabel: String {
+        switch sourceURLs.count {
+        case 0:
+            return "No source selected"
+        case 1:
+            return compactPath(sourceURLs[0]) ?? sourceURLs[0].path
+        default:
+            let first = compactPath(sourceURLs[0]) ?? sourceURLs[0].path
+            return "\(sourceURLs.count) sources selected, starting with \(first)"
+        }
     }
 
     func rescanSource() {
@@ -222,7 +241,7 @@ final class IngestViewModel {
     }
 
     var canStartIngest: Bool {
-        !isScanningSource && !isCopying && !hasBlockingPreflightIssues && sourceURL != nil && destinationURL != nil
+        !isScanningSource && !isCopying && !hasBlockingPreflightIssues && hasSelectedSources && destinationURL != nil
     }
 
     var copyProgressFraction: Double {
@@ -268,6 +287,10 @@ final class IngestViewModel {
 
     func formattedCopyTotalBytes() -> String {
         ByteCountFormatter.string(fromByteCount: copyProgress.totalBytes, countStyle: .file)
+    }
+
+    func formattedDestinationIngestSize() -> String {
+        ByteCountFormatter.string(fromByteCount: destinationIngestSizeBytes(), countStyle: .file)
     }
 
     var verificationIssueRecords: [IngestFileVerificationRecord] {
@@ -325,7 +348,8 @@ final class IngestViewModel {
         preserveFolderStructure: Bool,
         createReport: Bool
     ) {
-        guard let sourceURL, let destinationURL, canStartIngest else { return }
+        guard !sourceURLs.isEmpty, let destinationURL, canStartIngest else { return }
+        let selectedSourceURLs = sourceURLs
 
         copyTask?.cancel()
         workflowState = .copying
@@ -371,7 +395,7 @@ final class IngestViewModel {
             guard let self else { return }
             do {
                 let result = try await copier.copyRecursively(
-                    sourceURL: sourceURL,
+                    sourceURLs: selectedSourceURLs,
                     destinationURL: destinationURL,
                     conflictMode: conflictMode,
                     verificationEnabled: verificationEnabled,
@@ -422,7 +446,7 @@ final class IngestViewModel {
                 self.writeReport(
                     metadata: metadata,
                     settings: settings,
-                    sourceURL: sourceURL,
+                    sourceURLs: selectedSourceURLs,
                     destinationURL: destinationURL,
                     reportWriter: reportWriter
                 )
@@ -434,7 +458,7 @@ final class IngestViewModel {
                 self.writeReport(
                     metadata: metadata,
                     settings: settings,
-                    sourceURL: sourceURL,
+                    sourceURLs: selectedSourceURLs,
                     destinationURL: destinationURL,
                     reportWriter: reportWriter
                 )
@@ -451,7 +475,7 @@ final class IngestViewModel {
                 self.writeReport(
                     metadata: metadata,
                     settings: settings,
-                    sourceURL: sourceURL,
+                    sourceURLs: selectedSourceURLs,
                     destinationURL: destinationURL,
                     reportWriter: reportWriter
                 )
@@ -466,7 +490,8 @@ final class IngestViewModel {
     }
 
     private func startSourceScan() {
-        guard let sourceURL else { return }
+        guard !sourceURLs.isEmpty else { return }
+        let selectedSourceURLs = sourceURLs
 
         sourceScanTask?.cancel()
         workflowState = .scanning
@@ -478,7 +503,7 @@ final class IngestViewModel {
         sourceScanTask = Task { [weak self, sourceScanner] in
             guard let self else { return }
             do {
-                let result = try await sourceScanner.scan(sourceURL: sourceURL) { partialResult in
+                let result = try await sourceScanner.scan(sourceURLs: selectedSourceURLs) { partialResult in
                     await MainActor.run {
                         self.scanResult = partialResult
                         self.refreshPreflight()
@@ -531,10 +556,10 @@ final class IngestViewModel {
     private func refreshPreflight() {
         var issues: [IngestPreflightIssue] = []
 
-        if sourceURL == nil {
+        if sourceURLs.isEmpty {
             issues.append(IngestPreflightIssue(
                 severity: .error,
-                message: "Select a source folder before starting an ingest job."
+                message: "Select one or more source files or folders before starting an ingest job."
             ))
         }
 
@@ -545,10 +570,11 @@ final class IngestViewModel {
             ))
         }
 
-        if let sourceURL, let destinationURL, sourceURL.standardizedFileURL == destinationURL.standardizedFileURL {
+        if let destinationURL,
+           sourceURLs.contains(where: { $0.standardizedFileURL == destinationURL.standardizedFileURL }) {
             issues.append(IngestPreflightIssue(
                 severity: .error,
-                message: "Source and destination cannot point to the same folder."
+                message: "Source and destination cannot point to the same item."
             ))
         }
 
@@ -577,7 +603,7 @@ final class IngestViewModel {
                         message: "The destination does not have enough free space for the scanned source."
                     ))
                 }
-            } else if destinationURL != sourceURL {
+            } else if !sourceURLs.contains(where: { $0.standardizedFileURL == destinationURL.standardizedFileURL }) {
                 issues.append(IngestPreflightIssue(
                     severity: .warning,
                     message: "Free space could not be determined for the selected destination."
@@ -616,7 +642,7 @@ final class IngestViewModel {
         if cancelled {
             return .cancelled
         }
-        if sourceURL != nil && destinationURL != nil && !hasBlockingPreflightIssues {
+        if hasSelectedSources && destinationURL != nil && !hasBlockingPreflightIssues {
             return .ready
         }
         return .idle
@@ -672,16 +698,35 @@ final class IngestViewModel {
             skippedFiles: skippedFilesCount,
             failedFiles: failedFilesCount,
             mismatches: mismatchesCount,
+            sourceSizeBytes: scanResult.totalBytes,
+            destinationSizeBytes: destinationIngestSizeBytes(),
             elapsedTime: elapsedTime,
             startedAt: ingestStartedAt,
             finishedAt: Date()
         )
     }
 
+    private func destinationIngestSizeBytes() -> Int64 {
+        let records = copyResult?.verificationRecords ?? currentRunRecords
+        return records.reduce(Int64.zero) { total, record in
+            guard countsTowardDestinationSummary(record.state) else { return total }
+            return total + (record.destinationFileSize ?? 0)
+        }
+    }
+
+    private func countsTowardDestinationSummary(_ state: IngestFileVerificationState) -> Bool {
+        switch state {
+        case .verified, .copiedWithoutVerification, .mismatch, .skippedExisting:
+            return true
+        case .failed:
+            return false
+        }
+    }
+
     private func writeReport(
         metadata: IngestJobMetadata,
         settings: IngestJobSettings,
-        sourceURL: URL?,
+        sourceURLs: [URL],
         destinationURL: URL,
         reportWriter: IngestReportWriter
     ) {
@@ -697,7 +742,7 @@ final class IngestViewModel {
                 jobStatus: jobStatus ?? .failed,
                 metadata: metadata,
                 settings: settings,
-                sourceURL: sourceURL,
+                sourceURLs: sourceURLs,
                 summary: currentReportSummary(),
                 fileResults: copyResult?.verificationRecords ?? currentRunRecords,
                 warnings: currentWarnings(),
@@ -720,6 +765,17 @@ final class IngestViewModel {
         panel.canChooseDirectories = true
         panel.canCreateDirectories = true
         panel.allowsMultipleSelection = false
+        panel.directoryURL = initialURL
+        return panel
+    }
+
+    private func configuredSourcePanel(title: String, initialURL: URL?) -> NSOpenPanel {
+        let panel = NSOpenPanel()
+        panel.title = title
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = true
+        panel.canCreateDirectories = false
+        panel.allowsMultipleSelection = true
         panel.directoryURL = initialURL
         return panel
     }
@@ -792,7 +848,10 @@ final class IngestViewModel {
     }
 
     private func restorePersistedSelections() {
-        sourceURL = restoredURL(forKey: PersistedPathKey.source)
+        sourceURLs = restoredURLs(forKey: PersistedPathKey.sourcePaths)
+        if sourceURLs.isEmpty, let legacySourceURL = restoredURL(forKey: PersistedPathKey.source) {
+            sourceURLs = [legacySourceURL]
+        }
         destinationURL = restoredURL(forKey: PersistedPathKey.destination)
         reportDestinationURL = restoredURL(forKey: PersistedPathKey.reportDestination)
     }
@@ -807,9 +866,29 @@ final class IngestViewModel {
         return url
     }
 
-    private func setSourceURL(_ url: URL?) {
-        sourceURL = url?.standardizedFileURL
-        persist(url: sourceURL, forKey: PersistedPathKey.source)
+    private func restoredURLs(forKey key: String) -> [URL] {
+        guard let paths = UserDefaults.standard.stringArray(forKey: key) else { return [] }
+        let urls = paths
+            .map { URL(fileURLWithPath: $0).standardizedFileURL }
+            .filter { FileManager.default.fileExists(atPath: $0.path) }
+
+        if urls.count != paths.count {
+            persist(urls: urls, forKey: key)
+        }
+
+        return urls
+    }
+
+    private func setSourceURLs(_ urls: [URL]) {
+        var seen = Set<String>()
+        sourceURLs = urls.compactMap { url in
+            let standardized = url.standardizedFileURL
+            guard !seen.contains(standardized.path) else { return nil }
+            seen.insert(standardized.path)
+            return standardized
+        }
+        persist(urls: sourceURLs, forKey: PersistedPathKey.sourcePaths)
+        UserDefaults.standard.removeObject(forKey: PersistedPathKey.source)
     }
 
     private func setDestinationURL(_ url: URL?) {
@@ -827,6 +906,14 @@ final class IngestViewModel {
             UserDefaults.standard.set(url.path, forKey: key)
         } else {
             UserDefaults.standard.removeObject(forKey: key)
+        }
+    }
+
+    private func persist(urls: [URL], forKey key: String) {
+        if urls.isEmpty {
+            UserDefaults.standard.removeObject(forKey: key)
+        } else {
+            UserDefaults.standard.set(urls.map(\.path), forKey: key)
         }
     }
 }

@@ -52,7 +52,7 @@ struct IngestView: View {
             HStack(spacing: 10) {
                 badge(preserveFolderStructure ? "Folder Structure Preserved" : "Flat Copy Mode", tone: .accent)
                 badge(viewModel.preflightStatusTitle, tone: statusBadgeTone)
-                badge(viewModel.sourceURL == nil ? "Source Unset" : "Source Ready", tone: sourceBadgeTone)
+                badge(viewModel.hasSelectedSources ? "Source Ready" : "Source Unset", tone: sourceBadgeTone)
                 badge(verificationEnabled ? "SHA-256 \(viewModel.verificationStateTitle)" : "SHA-256 Disabled", tone: verificationBadgeTone)
             }
         }
@@ -91,12 +91,13 @@ struct IngestView: View {
         sectionCard(
             eyebrow: "Source",
             title: "Media source",
-            body: "Select or mount a source volume, card, or watch folder."
+            body: "Select one or more source files, volumes, cards, or watch folders."
         ) {
-            LabeledContent("Selected source") {
-                Text(viewModel.compactPath(viewModel.sourceURL) ?? "No source selected")
+            LabeledContent("Selected sources") {
+                Text(viewModel.sourceSelectionLabel)
                     .font(.caption.monospaced())
-                    .foregroundStyle(viewModel.sourceURL == nil ? .secondary : .primary)
+                    .foregroundStyle(viewModel.hasSelectedSources ? .primary : .secondary)
+                    .multilineTextAlignment(.trailing)
             }
 
             HStack(spacing: 10) {
@@ -104,14 +105,14 @@ struct IngestView: View {
                     viewModel.selectSource()
                 }
                 .buttonStyle(.borderedProminent)
-                .help("Choose the source folder or volume to scan and ingest.")
+                .help("Choose one or more source files, folders, or volumes to scan and ingest.")
 
                 Button("Rescan") {
                     viewModel.rescanSource()
                 }
                 .buttonStyle(.bordered)
-                .disabled(viewModel.sourceURL == nil || viewModel.canCancel)
-                .help("Scan the selected source again and refresh file, folder, and size totals.")
+                .disabled(!viewModel.hasSelectedSources || viewModel.canCancel)
+                .help("Scan the selected sources again and refresh file, folder, and size totals.")
 
                 if viewModel.isScanningSource {
                     Button("Cancel") {
@@ -123,6 +124,7 @@ struct IngestView: View {
             }
 
             HStack {
+                statPill(title: "Sources", value: "\(viewModel.sourceURLs.count)")
                 statPill(title: "Files", value: "\(viewModel.scanResult.fileCount)")
                 statPill(title: "Folders", value: "\(viewModel.scanResult.folderCount)")
                 statPill(title: "Size", value: viewModel.formattedTotalSize())
@@ -141,7 +143,7 @@ struct IngestView: View {
                     .font(.caption)
                     .foregroundStyle(.orange)
             } else {
-                Text("The selected source is scanned recursively to estimate files, folders, and total size.")
+                Text("Selected folders are scanned recursively; selected files are included directly in the ingest totals.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -555,7 +557,7 @@ struct IngestView: View {
     }
 
     private var sourceBadgeTone: IngestBadgeTone {
-        viewModel.sourceURL == nil ? .neutral : .success
+        viewModel.hasSelectedSources ? .success : .neutral
     }
 
     private var startButtonTint: Color {
@@ -593,6 +595,11 @@ struct IngestView: View {
 
             HStack {
                 statPill(title: "Elapsed", value: viewModel.formattedElapsedTime())
+            }
+
+            HStack {
+                statPill(title: "Source Size", value: viewModel.formattedTotalSize())
+                statPill(title: "Destination Size", value: viewModel.formattedDestinationIngestSize())
             }
         }
     }

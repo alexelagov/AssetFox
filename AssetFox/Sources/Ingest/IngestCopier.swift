@@ -30,7 +30,24 @@ struct IngestFileVerificationRecord: Identifiable {
     let sourcePath: String
     let destinationPath: String
     let fileSize: Int64
+    let destinationFileSize: Int64?
     let state: IngestFileVerificationState
+
+    init(
+        relativePath: String,
+        sourcePath: String,
+        destinationPath: String,
+        fileSize: Int64,
+        destinationFileSize: Int64? = nil,
+        state: IngestFileVerificationState
+    ) {
+        self.relativePath = relativePath
+        self.sourcePath = sourcePath
+        self.destinationPath = destinationPath
+        self.fileSize = fileSize
+        self.destinationFileSize = destinationFileSize
+        self.state = state
+    }
 }
 
 struct IngestCopyProgress {
@@ -106,8 +123,26 @@ struct IngestCopier {
         preserveFolderStructure: Bool,
         progress: @escaping @Sendable (IngestCopyProgress) async -> Void
     ) async throws -> IngestCopyResult {
+        try await copyRecursively(
+            sourceURLs: [sourceURL],
+            destinationURL: destinationURL,
+            conflictMode: conflictMode,
+            verificationEnabled: verificationEnabled,
+            preserveFolderStructure: preserveFolderStructure,
+            progress: progress
+        )
+    }
+
+    func copyRecursively(
+        sourceURLs: [URL],
+        destinationURL: URL,
+        conflictMode: IngestConflictMode,
+        verificationEnabled: Bool,
+        preserveFolderStructure: Bool,
+        progress: @escaping @Sendable (IngestCopyProgress) async -> Void
+    ) async throws -> IngestCopyResult {
         try await copySynchronously(
-            sourceURL: sourceURL,
+            sourceURLs: sourceURLs,
             destinationURL: destinationURL,
             conflictMode: conflictMode,
             verificationEnabled: verificationEnabled,
@@ -117,7 +152,7 @@ struct IngestCopier {
     }
 
     private func copySynchronously(
-        sourceURL: URL,
+        sourceURLs: [URL],
         destinationURL: URL,
         conflictMode: IngestConflictMode,
         verificationEnabled: Bool,
@@ -127,7 +162,7 @@ struct IngestCopier {
         let fileManager = FileManager.default
         let startedAt = Date()
         let preparation = try buildCopyJobs(
-            sourceURL: sourceURL,
+            sourceURLs: sourceURLs,
             destinationURL: destinationURL,
             preserveFolderStructure: preserveFolderStructure
         )
@@ -167,7 +202,7 @@ struct IngestCopier {
         do {
             for job in jobs {
                 try Task.checkCancellation()
-                try ensureSourceRootAvailable(sourceURL)
+                try ensureSourceRootAvailable(job.sourceRootURL)
                 try ensureDestinationRootAvailable(destinationURL)
 
                 let parentDirectory = job.destinationURL.deletingLastPathComponent()
@@ -206,6 +241,7 @@ struct IngestCopier {
                                 sourcePath: job.sourceURL.path,
                                 destinationPath: job.destinationURL.path,
                                 fileSize: job.size,
+                                destinationFileSize: sizeOnDisk(for: job.destinationURL),
                                 state: .skippedExisting
                             )
                             verificationRecords.append(record)
@@ -236,6 +272,7 @@ struct IngestCopier {
                                 sourcePath: job.sourceURL.path,
                                 destinationPath: job.destinationURL.path,
                                 fileSize: job.size,
+                                destinationFileSize: sizeOnDisk(for: job.destinationURL),
                                 state: .failed(reason: message)
                             )
                             verificationRecords.append(record)
@@ -275,6 +312,7 @@ struct IngestCopier {
                                 sourcePath: job.sourceURL.path,
                                 destinationPath: job.destinationURL.path,
                                 fileSize: job.size,
+                                destinationFileSize: sizeOnDisk(for: job.destinationURL),
                                 state: .failed(reason: message)
                             )
                             verificationRecords.append(record)
@@ -338,6 +376,7 @@ struct IngestCopier {
                         sourcePath: job.sourceURL.path,
                         destinationPath: job.destinationURL.path,
                         fileSize: job.size,
+                        destinationFileSize: sizeOnDisk(for: job.destinationURL),
                         state: .failed(reason: message)
                     )
                     verificationRecords.append(record)
@@ -375,6 +414,7 @@ struct IngestCopier {
                         sourcePath: job.sourceURL.path,
                         destinationPath: job.destinationURL.path,
                         fileSize: job.size,
+                        destinationFileSize: sizeOnDisk(for: job.destinationURL),
                         state: .copiedWithoutVerification
                     )
                     verificationRecords.append(record)
@@ -425,6 +465,7 @@ struct IngestCopier {
                             sourcePath: job.sourceURL.path,
                             destinationPath: job.destinationURL.path,
                             fileSize: job.size,
+                            destinationFileSize: sizeOnDisk(for: job.destinationURL),
                             state: .verified
                         )
                     } else {
@@ -436,6 +477,7 @@ struct IngestCopier {
                             sourcePath: job.sourceURL.path,
                             destinationPath: job.destinationURL.path,
                             fileSize: job.size,
+                            destinationFileSize: sizeOnDisk(for: job.destinationURL),
                             state: .mismatch
                         )
                     }
@@ -472,6 +514,7 @@ struct IngestCopier {
                         sourcePath: job.sourceURL.path,
                         destinationPath: job.destinationURL.path,
                         fileSize: job.size,
+                        destinationFileSize: sizeOnDisk(for: job.destinationURL),
                         state: .failed(reason: message)
                     )
                     verificationRecords.append(record)
@@ -538,12 +581,13 @@ struct IngestCopier {
     }
 
     private func buildCopyJobs(
-        sourceURL: URL,
+        sourceURLs: [URL],
         destinationURL: URL,
         preserveFolderStructure: Bool
     ) throws -> IngestCopyPreparation {
         let fileManager = FileManager.default
         let resourceKeys: Set<URLResourceKey> = [
+            .isDirectoryKey,
             .isRegularFileKey,
             .fileSizeKey,
             .totalFileAllocatedSizeKey,
@@ -551,90 +595,100 @@ struct IngestCopier {
             .isReadableKey
         ]
 
-        guard fileManager.fileExists(atPath: sourceURL.path) else {
-            throw IngestFatalJobError.sourceUnavailable("The source is no longer available.")
+        let selectedSources = uniqueStandardizedURLs(sourceURLs)
+        guard !selectedSources.isEmpty else {
+            return IngestCopyPreparation(
+                jobs: [],
+                initialRecords: [],
+                initialFailureCount: 0,
+                warnings: [],
+                errors: []
+            )
         }
 
         var warnings: [String] = []
         var errors: [String] = []
         var initialRecords: [IngestFileVerificationRecord] = []
-
-        guard let enumerator = fileManager.enumerator(
-            at: sourceURL,
-            includingPropertiesForKeys: Array(resourceKeys),
-            options: [.skipsPackageDescendants],
-            errorHandler: { url, error in
-                let message = "Could not enumerate \(url.path): \(error.localizedDescription)"
-                warnings.append(message)
-                return true
-            }
-        ) else {
-            throw IngestFatalJobError.sourceUnavailable("The source could not be enumerated.")
-        }
-
         var jobs: [IngestCopyJob] = []
-        let sourcePath = sourceURL.standardizedFileURL.path
         var reservedDestinationPaths = Set<String>()
+        var reservedSourceRootNames = Set<String>()
+        let shouldNamespaceDirectoryRoots = selectedSources.count > 1
 
-        for case let fileURL as URL in enumerator {
-            try Task.checkCancellation()
+        for sourceURL in selectedSources {
+            guard fileManager.fileExists(atPath: sourceURL.path) else {
+                throw IngestFatalJobError.sourceUnavailable("A selected source is no longer available: \(sourceURL.path)")
+            }
 
-            let relativePath = relativePath(for: fileURL, under: sourcePath)
-            let destinationFileURL: URL
-            if preserveFolderStructure {
-                destinationFileURL = destinationURL.appendingPathComponent(relativePath)
-            } else {
-                destinationFileURL = uniqueFlatDestinationURL(
-                    for: fileURL,
-                    destinationRootURL: destinationURL,
-                    reservedDestinationPaths: &reservedDestinationPaths
+            let sourceValues: URLResourceValues
+            do {
+                sourceValues = try sourceURL.resourceValues(forKeys: resourceKeys)
+            } catch {
+                let message = "Could not inspect selected source \(sourceURL.path): \(error.localizedDescription)"
+                errors.append(message)
+                continue
+            }
+
+            if sourceValues.isReadable == false {
+                let message = "Unreadable source skipped: \(sourceURL.path)"
+                errors.append(message)
+                continue
+            }
+
+            if sourceValues.isRegularFile == true {
+                appendCopyJob(
+                    sourceRootURL: sourceURL,
+                    fileURL: sourceURL,
+                    relativePath: sourceURL.lastPathComponent,
+                    destinationURL: destinationURL,
+                    preserveFolderStructure: preserveFolderStructure,
+                    reservedDestinationPaths: &reservedDestinationPaths,
+                    resourceKeys: resourceKeys,
+                    jobs: &jobs,
+                    errors: &errors,
+                    initialRecords: &initialRecords
+                )
+                continue
+            }
+
+            guard sourceValues.isDirectory == true else { continue }
+
+            let sourcePath = sourceURL.standardizedFileURL.path
+            let sourceRootPrefix = shouldNamespaceDirectoryRoots
+                ? uniqueSourceRootName(for: sourceURL, reservedNames: &reservedSourceRootNames)
+                : nil
+
+            guard let enumerator = fileManager.enumerator(
+                at: sourceURL,
+                includingPropertiesForKeys: Array(resourceKeys),
+                options: [.skipsPackageDescendants],
+                errorHandler: { url, error in
+                    let message = "Could not enumerate \(url.path): \(error.localizedDescription)"
+                    warnings.append(message)
+                    return true
+                }
+            ) else {
+                throw IngestFatalJobError.sourceUnavailable("The source could not be enumerated: \(sourceURL.path)")
+            }
+
+            for case let fileURL as URL in enumerator {
+                try Task.checkCancellation()
+
+                let childRelativePath = relativePath(for: fileURL, under: sourcePath)
+                let relativePath = sourceRootPrefix.map { "\($0)/\(childRelativePath)" } ?? childRelativePath
+
+                appendCopyJob(
+                    sourceRootURL: sourceURL,
+                    fileURL: fileURL,
+                    relativePath: relativePath,
+                    destinationURL: destinationURL,
+                    preserveFolderStructure: preserveFolderStructure,
+                    reservedDestinationPaths: &reservedDestinationPaths,
+                    resourceKeys: resourceKeys,
+                    jobs: &jobs,
+                    errors: &errors,
+                    initialRecords: &initialRecords
                 )
             }
-
-            let values: URLResourceValues
-            do {
-                values = try fileURL.resourceValues(forKeys: resourceKeys)
-            } catch {
-                let message = "Could not inspect \(relativePath): \(error.localizedDescription)"
-                errors.append(message)
-                initialRecords.append(IngestFileVerificationRecord(
-                    relativePath: relativePath,
-                    sourcePath: fileURL.path,
-                    destinationPath: destinationFileURL.path,
-                    fileSize: 0,
-                    state: .failed(reason: message)
-                ))
-                continue
-            }
-
-            guard values.isRegularFile == true else { continue }
-
-            if values.isReadable == false {
-                let message = "Unreadable source file skipped: \(relativePath)"
-                errors.append(message)
-                initialRecords.append(IngestFileVerificationRecord(
-                    relativePath: relativePath,
-                    sourcePath: fileURL.path,
-                    destinationPath: destinationFileURL.path,
-                    fileSize: 0,
-                    state: .failed(reason: message)
-                ))
-                continue
-            }
-
-            let size = values.totalFileAllocatedSize
-                ?? values.fileAllocatedSize
-                ?? values.fileSize
-                ?? 0
-
-            jobs.append(IngestCopyJob(
-                sourceURL: fileURL,
-                destinationURL: destinationFileURL,
-                relativePath: relativePath,
-                size: Int64(size)
-            ))
-
-            reservedDestinationPaths.insert(destinationFileURL.standardizedFileURL.path)
         }
 
         return IngestCopyPreparation(
@@ -644,6 +698,106 @@ struct IngestCopier {
             warnings: warnings,
             errors: errors
         )
+    }
+
+    private func appendCopyJob(
+        sourceRootURL: URL,
+        fileURL: URL,
+        relativePath: String,
+        destinationURL: URL,
+        preserveFolderStructure: Bool,
+        reservedDestinationPaths: inout Set<String>,
+        resourceKeys: Set<URLResourceKey>,
+        jobs: inout [IngestCopyJob],
+        errors: inout [String],
+        initialRecords: inout [IngestFileVerificationRecord]
+    ) {
+        let destinationFileURL: URL
+        if preserveFolderStructure {
+            destinationFileURL = destinationURL.appendingPathComponent(relativePath)
+        } else {
+            destinationFileURL = uniqueFlatDestinationURL(
+                for: fileURL,
+                destinationRootURL: destinationURL,
+                reservedDestinationPaths: &reservedDestinationPaths
+            )
+        }
+
+        let values: URLResourceValues
+        do {
+            values = try fileURL.resourceValues(forKeys: resourceKeys)
+        } catch {
+            let message = "Could not inspect \(relativePath): \(error.localizedDescription)"
+            errors.append(message)
+            initialRecords.append(IngestFileVerificationRecord(
+                relativePath: relativePath,
+                sourcePath: fileURL.path,
+                destinationPath: destinationFileURL.path,
+                fileSize: 0,
+                state: .failed(reason: message)
+            ))
+            return
+        }
+
+        guard values.isRegularFile == true else { return }
+
+        if values.isReadable == false {
+            let message = "Unreadable source file skipped: \(relativePath)"
+            errors.append(message)
+            initialRecords.append(IngestFileVerificationRecord(
+                relativePath: relativePath,
+                sourcePath: fileURL.path,
+                destinationPath: destinationFileURL.path,
+                fileSize: 0,
+                state: .failed(reason: message)
+            ))
+            return
+        }
+
+        let size = values.totalFileAllocatedSize
+            ?? values.fileAllocatedSize
+            ?? values.fileSize
+            ?? 0
+
+        jobs.append(IngestCopyJob(
+            sourceRootURL: sourceRootURL,
+            sourceURL: fileURL,
+            destinationURL: destinationFileURL,
+            relativePath: relativePath,
+            size: Int64(size)
+        ))
+
+        reservedDestinationPaths.insert(destinationFileURL.standardizedFileURL.path)
+    }
+
+    private func uniqueStandardizedURLs(_ urls: [URL]) -> [URL] {
+        var seen = Set<String>()
+        var result: [URL] = []
+
+        for url in urls {
+            let standardized = url.standardizedFileURL
+            let path = standardized.path
+            guard !seen.contains(path) else { continue }
+            seen.insert(path)
+            result.append(standardized)
+        }
+
+        return result
+    }
+
+    private func uniqueSourceRootName(for sourceURL: URL, reservedNames: inout Set<String>) -> String {
+        let fallback = "Source"
+        let baseName = sourceURL.lastPathComponent.isEmpty ? fallback : sourceURL.lastPathComponent
+        var candidate = baseName
+        var suffix = 2
+
+        while reservedNames.contains(candidate) {
+            candidate = "\(baseName) \(suffix)"
+            suffix += 1
+        }
+
+        reservedNames.insert(candidate)
+        return candidate
     }
 
     private func relativePath(for fileURL: URL, under sourcePath: String) -> String {
@@ -754,6 +908,21 @@ struct IngestCopier {
         return resourceCandidate == 0 ? nil : resourceCandidate
     }
 
+    private func sizeOnDisk(for fileURL: URL) -> Int64? {
+        let keys: Set<URLResourceKey> = [
+            .fileSizeKey,
+            .totalFileAllocatedSizeKey,
+            .fileAllocatedSizeKey
+        ]
+
+        guard let values = try? fileURL.resourceValues(forKeys: keys) else { return nil }
+        let size = values.totalFileAllocatedSize
+            ?? values.fileAllocatedSize
+            ?? values.fileSize
+
+        return size.map(Int64.init)
+    }
+
     private func nearestExistingFilesystemPath(for url: URL) -> URL? {
         let fileManager = FileManager.default
         var candidate = url.standardizedFileURL
@@ -837,6 +1006,7 @@ struct IngestCopier {
 }
 
 private struct IngestCopyJob {
+    let sourceRootURL: URL
     let sourceURL: URL
     let destinationURL: URL
     let relativePath: String
