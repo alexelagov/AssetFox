@@ -6,80 +6,81 @@ struct DropZoneView: View {
     @State private var isTargeted = false
 
     var body: some View {
-        VStack(spacing: 0) {
-            Spacer()
+        ScrollView {
+            VStack(alignment: .leading, spacing: 24) {
+                AssetFoxPageHeader(
+                    title: "Duplicate Finder",
+                    systemImage: "doc.on.doc",
+                    subtitle: "Scan a folder to find duplicate media and reclaim disk space."
+                )
 
-            VStack(spacing: 28) {
-                Image(systemName: "doc.on.doc")
-                    .font(.system(size: 64, weight: .ultraLight))
-                    .foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 18) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("SOURCE")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                        Text("Scan folder")
+                            .font(.title3.weight(.semibold))
+                        Text("Drop a folder into the target or choose one from disk.")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
 
-                VStack(spacing: 8) {
-                    Text("Duplicate Finder")
-                        .font(.largeTitle.weight(.semibold))
-                    Text("Scan a folder to find duplicate media and reclaim disk space.")
-                        .foregroundStyle(.secondary)
-                }
+                    ZStack {
+                        RoundedRectangle(cornerRadius: AssetFoxDesign.panelRadius, style: .continuous)
+                            .fill(isTargeted ? Color.accentColor.opacity(0.10) : Color(nsColor: .windowBackgroundColor))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: AssetFoxDesign.panelRadius, style: .continuous)
+                                    .strokeBorder(
+                                        isTargeted ? Color.accentColor : Color.secondary.opacity(0.28),
+                                        style: StrokeStyle(lineWidth: 1.5, dash: [8, 5])
+                                    )
+                            )
+                            .frame(minHeight: 190)
 
-                ZStack {
-                    RoundedRectangle(cornerRadius: 16)
-                        .strokeBorder(
-                            isTargeted ? Color.accentColor : Color.secondary.opacity(0.3),
-                            style: StrokeStyle(lineWidth: 2, dash: [8, 5])
-                        )
-                        .background(
-                            RoundedRectangle(cornerRadius: 16)
-                                .fill(isTargeted ? Color.accentColor.opacity(0.08) : Color.clear)
-                        )
-                        .frame(width: 380, height: 160)
+                        VStack(spacing: 12) {
+                            Image(systemName: isTargeted ? "folder.fill.badge.plus" : "folder.badge.plus")
+                                .font(.system(size: 34, weight: .semibold))
+                                .foregroundStyle(isTargeted ? Color.accentColor : Color.secondary)
+                            Text(isTargeted ? "Drop to start scanning" : "Drop a folder here")
+                                .font(.headline)
+                                .foregroundStyle(isTargeted ? Color.accentColor : Color.primary)
+                            Text("Supports MXF, MOV, MP4, JPEG, PNG, PDF, and other common media formats.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        .multilineTextAlignment(.center)
+                        .padding(24)
+                    }
+                    .dropDestination(for: URL.self) { items, _ in
+                        guard let url = items.first else { return false }
+                        var isDir: ObjCBool = false
+                        FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir)
+                        guard isDir.boolValue else { return false }
+                        vm.rootURL = url
+                        vm.startScan()
+                        return true
+                    } isTargeted: { isTargeted = $0 }
 
-                    VStack(spacing: 12) {
-                        Image(systemName: isTargeted ? "folder.fill.badge.plus" : "folder.badge.plus")
-                            .font(.system(size: 32))
-                            .foregroundStyle(isTargeted ? Color.accentColor : Color.secondary)
-                        Text(isTargeted ? "Drop to start scanning" : "Drop a folder here")
-                            .font(.headline)
-                            .foregroundStyle(isTargeted ? Color.accentColor : Color.secondary)
+                    HStack(spacing: 12) {
+                        Button("Choose Folder") {
+                            pickFolder()
+                        }
+                        .buttonStyle(.borderedProminent)
+
+                        if vm.rootURL != nil {
+                            Button("Scan Again") { vm.startScan() }
+                                .buttonStyle(.bordered)
+                        }
                     }
                 }
-                .dropDestination(for: URL.self) { items, _ in
-                    guard let url = items.first else { return false }
-                    var isDir: ObjCBool = false
-                    FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir)
-                    guard isDir.boolValue else { return false }
-                    vm.rootURL = url
-                    vm.startScan()
-                    return true
-                } isTargeted: { isTargeted = $0 }
-
-                HStack(spacing: 12) {
-                    Button {
-                        pickFolder()
-                    } label: {
-                        Label("Choose Folder", systemImage: "folder")
-                            .frame(width: 160)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.large)
-
-                    if vm.rootURL != nil {
-                        Button("Scan Again") { vm.startScan() }
-                            .buttonStyle(.bordered)
-                            .controlSize(.large)
-                    }
-                }
+                .padding(AssetFoxDesign.panelPadding)
+                .background(AssetFoxPanelBackground())
             }
-
-            Spacer()
-
-            // Footer hint
-            HStack(spacing: 4) {
-                Image(systemName: "info.circle")
-                Text("Supports MXF, MOV, MP4, JPEG, PNG, PDF, and other common media formats.")
-            }
-            .font(.caption)
-            .foregroundStyle(.tertiary)
-            .padding(.bottom, 20)
+            .frame(maxWidth: AssetFoxDesign.pageMaxWidth, alignment: .leading)
+            .padding(.horizontal, AssetFoxDesign.pageHorizontalPadding)
+            .padding(.vertical, AssetFoxDesign.pageVerticalPadding)
+            .frame(maxWidth: .infinity, alignment: .center)
         }
     }
 

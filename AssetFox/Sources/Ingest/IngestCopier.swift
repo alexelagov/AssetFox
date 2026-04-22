@@ -241,7 +241,7 @@ struct IngestCopier {
                                 sourcePath: job.sourceURL.path,
                                 destinationPath: job.destinationURL.path,
                                 fileSize: job.size,
-                                destinationFileSize: sizeOnDisk(for: job.destinationURL),
+                                destinationFileSize: fileSize(for: job.destinationURL),
                                 state: .skippedExisting
                             )
                             verificationRecords.append(record)
@@ -272,7 +272,7 @@ struct IngestCopier {
                                 sourcePath: job.sourceURL.path,
                                 destinationPath: job.destinationURL.path,
                                 fileSize: job.size,
-                                destinationFileSize: sizeOnDisk(for: job.destinationURL),
+                                destinationFileSize: fileSize(for: job.destinationURL),
                                 state: .failed(reason: message)
                             )
                             verificationRecords.append(record)
@@ -312,7 +312,7 @@ struct IngestCopier {
                                 sourcePath: job.sourceURL.path,
                                 destinationPath: job.destinationURL.path,
                                 fileSize: job.size,
-                                destinationFileSize: sizeOnDisk(for: job.destinationURL),
+                                destinationFileSize: fileSize(for: job.destinationURL),
                                 state: .failed(reason: message)
                             )
                             verificationRecords.append(record)
@@ -376,7 +376,7 @@ struct IngestCopier {
                         sourcePath: job.sourceURL.path,
                         destinationPath: job.destinationURL.path,
                         fileSize: job.size,
-                        destinationFileSize: sizeOnDisk(for: job.destinationURL),
+                        destinationFileSize: fileSize(for: job.destinationURL),
                         state: .failed(reason: message)
                     )
                     verificationRecords.append(record)
@@ -414,7 +414,7 @@ struct IngestCopier {
                         sourcePath: job.sourceURL.path,
                         destinationPath: job.destinationURL.path,
                         fileSize: job.size,
-                        destinationFileSize: sizeOnDisk(for: job.destinationURL),
+                        destinationFileSize: fileSize(for: job.destinationURL),
                         state: .copiedWithoutVerification
                     )
                     verificationRecords.append(record)
@@ -465,7 +465,7 @@ struct IngestCopier {
                             sourcePath: job.sourceURL.path,
                             destinationPath: job.destinationURL.path,
                             fileSize: job.size,
-                            destinationFileSize: sizeOnDisk(for: job.destinationURL),
+                            destinationFileSize: fileSize(for: job.destinationURL),
                             state: .verified
                         )
                     } else {
@@ -477,7 +477,7 @@ struct IngestCopier {
                             sourcePath: job.sourceURL.path,
                             destinationPath: job.destinationURL.path,
                             fileSize: job.size,
-                            destinationFileSize: sizeOnDisk(for: job.destinationURL),
+                            destinationFileSize: fileSize(for: job.destinationURL),
                             state: .mismatch
                         )
                     }
@@ -514,7 +514,7 @@ struct IngestCopier {
                         sourcePath: job.sourceURL.path,
                         destinationPath: job.destinationURL.path,
                         fileSize: job.size,
-                        destinationFileSize: sizeOnDisk(for: job.destinationURL),
+                        destinationFileSize: fileSize(for: job.destinationURL),
                         state: .failed(reason: message)
                     )
                     verificationRecords.append(record)
@@ -754,9 +754,9 @@ struct IngestCopier {
             return
         }
 
-        let size = values.totalFileAllocatedSize
+        let size = values.fileSize
+            ?? values.totalFileAllocatedSize
             ?? values.fileAllocatedSize
-            ?? values.fileSize
             ?? 0
 
         jobs.append(IngestCopyJob(
@@ -908,7 +908,7 @@ struct IngestCopier {
         return resourceCandidate == 0 ? nil : resourceCandidate
     }
 
-    private func sizeOnDisk(for fileURL: URL) -> Int64? {
+    private func fileSize(for fileURL: URL) -> Int64? {
         let keys: Set<URLResourceKey> = [
             .fileSizeKey,
             .totalFileAllocatedSizeKey,
@@ -916,9 +916,9 @@ struct IngestCopier {
         ]
 
         guard let values = try? fileURL.resourceValues(forKeys: keys) else { return nil }
-        let size = values.totalFileAllocatedSize
+        let size = values.fileSize
+            ?? values.totalFileAllocatedSize
             ?? values.fileAllocatedSize
-            ?? values.fileSize
 
         return size.map(Int64.init)
     }

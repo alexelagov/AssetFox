@@ -1,18 +1,21 @@
 import Foundation
 
 enum CollectMediaServiceError: LocalizedError {
-    case missingXML
+    case missingSourceDocument
     case invalidXMLPath
+    case invalidPremiereProjectPath
     case missingDestination
     case invalidDestinationPath
     case invalidSearchRootPath
 
     var errorDescription: String? {
         switch self {
-        case .missingXML:
-            return "Please select an XML file."
+        case .missingSourceDocument:
+            return "Please select an XML file or Premiere project."
         case .invalidXMLPath:
             return "The selected XML file does not exist."
+        case .invalidPremiereProjectPath:
+            return "The selected Premiere project file does not exist."
         case .missingDestination:
             return "Please select a destination folder."
         case .invalidDestinationPath:

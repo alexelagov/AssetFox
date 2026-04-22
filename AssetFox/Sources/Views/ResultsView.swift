@@ -5,21 +5,26 @@ struct ResultsView: View {
     @State private var pendingDeleteAction: PendingDeleteAction?
 
     var body: some View {
-        NavigationSplitView {
+        HStack(spacing: 0) {
             SidebarView(vm: vm)
-                .navigationSplitViewColumnWidth(min: 260, ideal: 300)
-        } detail: {
+                .frame(width: 300)
+
+            Divider()
+
             if let id = vm.selectedGroupID,
                let group = vm.groups.first(where: { $0.id == id }) {
                 GroupDetailView(group: group, vm: vm)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 ContentUnavailableView(
                     "Select a Duplicate Set",
                     systemImage: "doc.on.doc",
                     description: Text("Choose a set from the sidebar to review the files inside it.")
                 )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
+        .background(Color(nsColor: .windowBackgroundColor))
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
                 Button {
@@ -89,29 +94,40 @@ struct SidebarView: View {
     @Bindable var vm: AppViewModel
 
     var body: some View {
-        List(vm.groups, selection: $vm.selectedGroupID) { group in
-            GroupRowView(group: group)
-                .tag(group.id)
-        }
-        .listStyle(.sidebar)
-        .safeAreaInset(edge: .bottom) {
-            VStack(spacing: 6) {
-                Divider()
-                HStack {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("\(vm.groups.count) duplicate sets")
-                            .font(.caption.weight(.medium))
-                        Text("Space you can recover: \(vm.totalWasted)")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    Spacer()
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
+        VStack(alignment: .leading, spacing: 0) {
+            Text("Duplicate Finder")
+                .font(.headline)
+                .padding(.horizontal, 14)
+                .padding(.top, 12)
+                .padding(.bottom, 8)
+
+            List(vm.groups, selection: $vm.selectedGroupID) { group in
+                GroupRowView(group: group)
+                    .tag(group.id)
             }
-            .background(.bar)
+            .listStyle(.sidebar)
+            .safeAreaInset(edge: .bottom) {
+                VStack(spacing: 6) {
+                    Divider()
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("\(vm.groups.count) duplicate sets")
+                                .font(.caption.weight(.medium))
+                            Text("Space you can recover: \(vm.totalWasted)")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(2)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        Spacer()
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                }
+                .background(.bar)
+            }
         }
+        .background(.bar)
     }
 }
 

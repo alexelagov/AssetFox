@@ -2,13 +2,15 @@ import Foundation
 
 struct CollectMediaService: CollectMediaRunning {
     func makeRun(request: CollectRequest) -> any CollectMediaRun {
-        let parser = CollectMediaXMLParser()
+        let xmlParser = CollectMediaXMLParser()
+        let premiereProjectParser = CollectMediaPremiereProjectParser()
         let ffProbeAdapter = FFProbeAdapter()
         let relinker = CollectMediaRelinker(ffProbeAdapter: ffProbeAdapter)
         let collector = CollectMediaCollector(relinker: relinker)
         return ServiceRun(
             request: request,
-            parser: parser,
+            xmlParser: xmlParser,
+            premiereProjectParser: premiereProjectParser,
             collector: collector,
             ffProbeAdapter: ffProbeAdapter
         )
@@ -24,7 +26,8 @@ private final class ServiceRun: CollectMediaRun, @unchecked Sendable {
 
     init(
         request: CollectRequest,
-        parser: CollectMediaXMLParser,
+        xmlParser: CollectMediaXMLParser,
+        premiereProjectParser: CollectMediaPremiereProjectParser,
         collector: CollectMediaCollector,
         ffProbeAdapter: FFProbeAdapter
     ) {
@@ -56,17 +59,21 @@ private final class ServiceRun: CollectMediaRun, @unchecked Sendable {
                     phase: .parsingXML,
                     completedUnitCount: 0,
                     totalUnitCount: 0,
-                    currentItem: request.xmlURL.path,
+                    currentItem: Self.sourceDocumentSummary(for: request),
                     counts: CollectCounts(),
-                    message: "Parsing XML..."
+                    message: "Parsing source document(s)..."
                 ))
 
-                let parsed = try parser.parse(xmlURL: request.xmlURL)
+                let parsed = try Self.parseDocuments(
+                    request: request,
+                    xmlParser: xmlParser,
+                    premiereProjectParser: premiereProjectParser
+                )
                 progressContinuation.yield(CollectProgress(
                     phase: .parsingXML,
                     completedUnitCount: 0,
                     totalUnitCount: parsed.entries.count,
-                    currentItem: request.xmlURL.path,
+                    currentItem: Self.sourceDocumentSummary(for: request),
                     counts: CollectCounts(found: parsed.entries.count, copied: 0, missing: 0, skipped: parsed.parserRows.count),
                     message: "Found \(parsed.entries.count) unique media item(s)."
                 ))
@@ -108,9 +115,23 @@ private final class ServiceRun: CollectMediaRun, @unchecked Sendable {
     private static func validate(request: CollectRequest) throws {
         let manager = FileManager.default
 
-        let xmlPath = request.xmlURL.path.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !xmlPath.isEmpty else { throw CollectMediaServiceError.missingXML }
-        guard manager.fileExists(atPath: xmlPath) else { throw CollectMediaServiceError.invalidXMLPath }
+        guard request.xmlURL != nil || request.premiereProjectURL != nil else {
+            throw CollectMediaServiceError.missingSourceDocument
+        }
+
+        if let xmlURL = request.xmlURL {
+            let xmlPath = xmlURL.path.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !xmlPath.isEmpty, manager.fileExists(atPath: xmlPath) else {
+                throw CollectMediaServiceError.invalidXMLPath
+            }
+        }
+
+        if let premiereProjectURL = request.premiereProjectURL {
+            let projectPath = premiereProjectURL.path.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !projectPath.isEmpty, manager.fileExists(atPath: projectPath) else {
+                throw CollectMediaServiceError.invalidPremiereProjectPath
+            }
+        }
 
         let destinationPath = request.destinationURL.path.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !destinationPath.isEmpty else { throw CollectMediaServiceError.missingDestination }
@@ -125,5 +146,59 @@ private final class ServiceRun: CollectMediaRun, @unchecked Sendable {
                 throw CollectMediaServiceError.invalidSearchRootPath
             }
         }
+    }
+
+    private static func parseDocuments(
+        request: CollectRequest,
+        xmlParser: CollectMediaXMLParser,
+        premiereProjectParser: CollectMediaPremiereProjectParser
+    ) throws -> ParsedCollectMediaDocument {
+        var entriesByPath: [String: CollectMediaEntry] = [:]
+        var parserRows: [CollectReportRow] = []
+
+        if let xmlURL = request.xmlURL {
+            let parsedXML = try xmlParser.parse(xmlURL: xmlURL)
+            merge(parsedXML, into: &entriesByPath, parserRows: &parserRows)
+        }
+
+        if let premiereProjectURL = request.premiereProjectURL {
+            let parsedProject = try premiereProjectParser.parse(projectURL: premiereProjectURL)
+            merge(parsedProject, into: &entriesByPath, parserRows: &parserRows)
+        }
+
+        return ParsedCollectMediaDocument(
+            entries: Array(entriesByPath.values).sorted { $0.sourcePath < $1.sourcePath },
+            parserRows: parserRows
+        )
+    }
+
+    private static func merge(
+        _ parsed: ParsedCollectMediaDocument,
+        into entriesByPath: inout [String: CollectMediaEntry],
+        parserRows: inout [CollectReportRow]
+    ) {
+        for entry in parsed.entries {
+            if let existing = entriesByPath[entry.sourcePath] {
+                entriesByPath[entry.sourcePath] = CollectMediaEntry(
+                    id: existing.id,
+                    sourcePath: existing.sourcePath,
+                    basename: existing.basename,
+                    fileExtension: existing.fileExtension,
+                    expectedTimecodeStart: existing.expectedTimecodeStart ?? entry.expectedTimecodeStart,
+                    expectedDurationSeconds: existing.expectedDurationSeconds ?? entry.expectedDurationSeconds,
+                    expectedSizeBytes: existing.expectedSizeBytes ?? entry.expectedSizeBytes
+                )
+            } else {
+                entriesByPath[entry.sourcePath] = entry
+            }
+        }
+
+        parserRows.append(contentsOf: parsed.parserRows)
+    }
+
+    private static func sourceDocumentSummary(for request: CollectRequest) -> String {
+        [request.xmlURL?.path, request.premiereProjectURL?.path]
+            .compactMap { $0 }
+            .joined(separator: "\n")
     }
 }

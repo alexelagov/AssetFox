@@ -96,8 +96,8 @@ struct CollectResult: Equatable, Codable, Sendable {
 }
 
 struct CollectRequest: Hashable, Codable, Sendable {
-    var xmlURL: URL
-    var edlURL: URL?
+    var xmlURL: URL?
+    var premiereProjectURL: URL?
     var destinationURL: URL
     var options: CollectOptions
 }

@@ -17,9 +17,9 @@ struct MediaInfoView: View {
 
     private let inspector = MediaInfoInspector()
     private let comparisonService = MediaInfoComparisonService()
-    private let primaryColumnWidth: CGFloat = 720
-    private let sidebarWidth: CGFloat = 360
-    private let workspaceSpacing: CGFloat = 24
+    private let primaryColumnWidth = AssetFoxDesign.primaryColumnWidth
+    private let sidebarWidth = AssetFoxDesign.sidebarWidth
+    private let workspaceSpacing = AssetFoxDesign.workspaceSpacing
     private let maxConcurrentInspections = 3
 
     private var workspaceWidth: CGFloat {
@@ -111,8 +111,8 @@ struct MediaInfoView: View {
                 workspaceSection
             }
             .frame(maxWidth: workspaceWidth, alignment: .leading)
-            .padding(.horizontal, 32)
-            .padding(.vertical, 28)
+            .padding(.horizontal, AssetFoxDesign.pageHorizontalPadding)
+            .padding(.vertical, AssetFoxDesign.pageVerticalPadding)
             .frame(maxWidth: .infinity, alignment: .center)
         }
         .background(Color(nsColor: .windowBackgroundColor))
@@ -125,15 +125,11 @@ struct MediaInfoView: View {
     }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            Label("Media Info", systemImage: "info.square")
-                .font(.system(size: 28, weight: .semibold))
-
-            Text("Inspect files and surface RAW families, containers, codecs, resolution, frame rate, duration, timecode, and color metadata.")
-                .font(.title3)
-                .foregroundStyle(.secondary)
-                .frame(maxWidth: 760, alignment: .leading)
-
+        AssetFoxPageHeader(
+            title: "Media Info",
+            systemImage: "info.square",
+            subtitle: "Inspect files and surface RAW families, containers, codecs, resolution, frame rate, duration, timecode, and color metadata."
+        ) {
             HStack(alignment: .center, spacing: 12) {
                 Text("Mode")
                     .font(.system(size: 13, weight: .semibold))
@@ -166,38 +162,38 @@ struct MediaInfoView: View {
     }
 
     private var workspaceSection: some View {
-        VStack(alignment: .leading, spacing: 24) {
-            ViewThatFits(in: .horizontal) {
-                HStack(alignment: .top, spacing: workspaceSpacing) {
-                    VStack(alignment: .leading, spacing: 24) {
-                        sourcePanel
-                        selectionPanel
-                    }
-                    .frame(width: primaryColumnWidth, alignment: .topLeading)
+        ViewThatFits(in: .horizontal) {
+            VStack(alignment: .leading, spacing: 24) {
+                sourcePanel
 
+                HStack(alignment: .top, spacing: workspaceSpacing) {
+                    selectionPanel
+                        .frame(width: primaryColumnWidth, alignment: .topLeading)
                     summaryPanel
                         .frame(width: sidebarWidth, alignment: .topLeading)
                 }
 
-                VStack(alignment: .leading, spacing: 24) {
-                    sourcePanel
-                    selectionPanel
-                    summaryPanel
-                }
+                metadataPanel
             }
 
-            metadataPanel
+            VStack(alignment: .leading, spacing: 24) {
+                sourcePanel
+                selectionPanel
+                summaryPanel
+                metadataPanel
+            }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var sourcePanel: some View {
         MediaInfoPanel(title: "Source", headline: "Drop zone", subtitle: "Drop one or more files here, or choose them from disk.") {
             VStack(alignment: .leading, spacing: 16) {
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .fill(Color.white.opacity(isDropTargeted ? 0.08 : 0.03))
+                RoundedRectangle(cornerRadius: AssetFoxDesign.innerRadius, style: .continuous)
+                    .fill(isDropTargeted ? Color.accentColor.opacity(0.10) : Color(nsColor: .windowBackgroundColor))
                     .overlay(
-                        RoundedRectangle(cornerRadius: 20, style: .continuous)
-                            .strokeBorder(isDropTargeted ? Color.accentColor : Color.white.opacity(0.08), style: StrokeStyle(lineWidth: 1.5, dash: [8, 8]))
+                        RoundedRectangle(cornerRadius: AssetFoxDesign.innerRadius, style: .continuous)
+                            .strokeBorder(isDropTargeted ? Color.accentColor : Color.secondary.opacity(0.14), style: StrokeStyle(lineWidth: 1.5, dash: [8, 8]))
                     )
                     .frame(height: 170)
                     .overlay {
@@ -320,11 +316,11 @@ struct MediaInfoView: View {
                             .padding(14)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .background(
-                                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                RoundedRectangle(cornerRadius: AssetFoxDesign.innerRadius, style: .continuous)
                                     .fill(cardFill(for: item))
                             )
                             .overlay(
-                                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                RoundedRectangle(cornerRadius: AssetFoxDesign.innerRadius, style: .continuous)
                                     .strokeBorder(cardStroke(for: item), lineWidth: 1)
                             )
                         }
@@ -629,7 +625,7 @@ struct MediaInfoView: View {
         if presentationMode == .compare && compareSelection.contains(item.id) {
             return Color.green.opacity(0.10)
         }
-        return Color.white.opacity(0.03)
+        return Color(nsColor: .windowBackgroundColor)
     }
 
     private func cardStroke(for item: MediaInfoItem) -> Color {
@@ -639,7 +635,7 @@ struct MediaInfoView: View {
         if presentationMode == .compare && compareSelection.contains(item.id) {
             return Color.green.opacity(0.28)
         }
-        return Color.white.opacity(0.04)
+        return Color.secondary.opacity(0.10)
     }
 
     private func metadataSections(for metadata: MediaInfoInspectionResult, item: MediaInfoItem?) -> [MediaInfoInspectorSection] {
@@ -1075,11 +1071,10 @@ private struct MediaInfoPanel<Content: View>: View {
 
             content
         }
-        .padding(22)
+        .padding(AssetFoxDesign.panelPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .fill(Color.accentColor.opacity(0.05))
+            AssetFoxPanelBackground()
         )
     }
 }
@@ -1120,7 +1115,7 @@ private struct MediaInfoRow: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(14)
         .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
+            RoundedRectangle(cornerRadius: AssetFoxDesign.innerRadius, style: .continuous)
                 .fill(Color(nsColor: .controlBackgroundColor))
         )
     }
@@ -1177,19 +1172,19 @@ private struct MediaInfoInspectorSectionView: View {
                     }
                     .padding(.horizontal, 14)
                     .padding(.vertical, 8)
-                    .background(index.isMultiple(of: 2) ? Color.white.opacity(0.02) : Color.clear)
+                    .background(index.isMultiple(of: 2) ? Color.secondary.opacity(0.04) : Color.clear)
 
                     if index < visibleRows.count - 1 {
                         Divider()
-                            .overlay(Color.white.opacity(0.04))
+                            .overlay(Color.secondary.opacity(0.06))
                     }
                 }
             }
             .background(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                RoundedRectangle(cornerRadius: AssetFoxDesign.innerRadius, style: .continuous)
                     .fill(Color(nsColor: .controlBackgroundColor))
             )
-            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: AssetFoxDesign.innerRadius, style: .continuous))
         }
     }
 }
@@ -1224,7 +1219,7 @@ private struct MediaInfoComparisonSectionView: View {
                     VStack(spacing: 0) {
                         if let firstRow = section.rows.first {
                             comparisonHeaderRow(firstRow: firstRow, flexibleColumns: true)
-                                .background(Color.white.opacity(0.03))
+                                .background(Color.secondary.opacity(0.05))
                         }
 
                         ForEach(Array(section.rows.enumerated()), id: \.element.id) { index, row in
@@ -1232,7 +1227,7 @@ private struct MediaInfoComparisonSectionView: View {
 
                             if index < section.rows.count - 1 {
                                 Divider()
-                                    .overlay(Color.white.opacity(0.04))
+                                    .overlay(Color.secondary.opacity(0.06))
                             }
                         }
                     }
@@ -1241,7 +1236,7 @@ private struct MediaInfoComparisonSectionView: View {
                         VStack(spacing: 0) {
                             if let firstRow = section.rows.first {
                                 comparisonHeaderRow(firstRow: firstRow, flexibleColumns: false)
-                                    .background(Color.white.opacity(0.03))
+                                    .background(Color.secondary.opacity(0.05))
                             }
 
                             ForEach(Array(section.rows.enumerated()), id: \.element.id) { index, row in
@@ -1249,7 +1244,7 @@ private struct MediaInfoComparisonSectionView: View {
 
                                 if index < section.rows.count - 1 {
                                     Divider()
-                                        .overlay(Color.white.opacity(0.04))
+                                        .overlay(Color.secondary.opacity(0.06))
                                 }
                             }
                         }
@@ -1257,10 +1252,10 @@ private struct MediaInfoComparisonSectionView: View {
                 }
             }
             .background(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                RoundedRectangle(cornerRadius: AssetFoxDesign.innerRadius, style: .continuous)
                     .fill(Color(nsColor: .controlBackgroundColor))
             )
-            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: AssetFoxDesign.innerRadius, style: .continuous))
         }
     }
 
@@ -1325,7 +1320,7 @@ private struct MediaInfoComparisonSectionView: View {
             let baseOpacity = emphasizeDifferences ? (index.isMultiple(of: 2) ? 0.30 : 0.26) : (index.isMultiple(of: 2) ? 0.18 : 0.14)
             return differenceTint.opacity(baseOpacity)
         }
-        return index.isMultiple(of: 2) ? Color.white.opacity(0.02) : Color.clear
+        return index.isMultiple(of: 2) ? Color.secondary.opacity(0.04) : Color.clear
     }
 }
 
