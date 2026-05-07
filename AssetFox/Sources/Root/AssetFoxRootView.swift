@@ -61,6 +61,8 @@ struct AssetFoxRootView: View {
             ContentView()
         case .collectMedia:
             CollectMediaView()
+        case .qualityCheck:
+            QualityCheckView()
         case .ingest:
             IngestView()
         case .mediaInfo:
@@ -74,6 +76,7 @@ struct AssetFoxRootView: View {
 enum AssetFoxSection: String, CaseIterable, Identifiable {
     case duplicateFinder
     case collectMedia
+    case qualityCheck
     case ingest
     case mediaInfo
     case about
@@ -81,9 +84,10 @@ enum AssetFoxSection: String, CaseIterable, Identifiable {
     var id: Self { self }
 
     static let toolSections: [AssetFoxSection] = [
+        .qualityCheck,
+        .ingest,
         .duplicateFinder,
         .collectMedia,
-        .ingest,
         .mediaInfo
     ]
 
@@ -97,6 +101,8 @@ enum AssetFoxSection: String, CaseIterable, Identifiable {
             "Duplicate Finder"
         case .collectMedia:
             "Collect Media"
+        case .qualityCheck:
+            "Quality Check"
         case .ingest:
             "Ingest"
         case .mediaInfo:
@@ -112,6 +118,8 @@ enum AssetFoxSection: String, CaseIterable, Identifiable {
             "Find duplicate files"
         case .collectMedia:
             "Collect Premiere media"
+        case .qualityCheck:
+            "Compare video exports"
         case .ingest:
             "Copy and verify sources"
         case .mediaInfo:
@@ -127,6 +135,8 @@ enum AssetFoxSection: String, CaseIterable, Identifiable {
             "doc.on.doc"
         case .collectMedia:
             "shippingbox"
+        case .qualityCheck:
+            "rectangle.split.3x1"
         case .ingest:
             "square.and.arrow.down.on.square"
         case .mediaInfo:
@@ -138,16 +148,18 @@ enum AssetFoxSection: String, CaseIterable, Identifiable {
 
     var keyboardShortcut: KeyEquivalent {
         switch self {
-        case .duplicateFinder:
+        case .qualityCheck:
             "1"
-        case .collectMedia:
-            "2"
         case .ingest:
+            "2"
+        case .duplicateFinder:
             "3"
-        case .mediaInfo:
+        case .collectMedia:
             "4"
-        case .about:
+        case .mediaInfo:
             "5"
+        case .about:
+            "6"
         }
     }
 }
@@ -285,6 +297,7 @@ private struct AssetFoxAboutView: View {
     private let appVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "Unknown"
     private let buildNumber = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "Unknown"
     @State private var runtimeStatus = MediaInfoRuntimeStatus.snapshot()
+    @State private var ffmpegStatus = FFmpegRuntimeResolver.snapshot()
 
     var body: some View {
         ScrollView {
@@ -299,6 +312,8 @@ private struct AssetFoxAboutView: View {
                         aboutBadge("Build \(buildNumber)", tint: .green)
                         aboutBadge(runtimeStatus.bundled ? "MediaInfoLib Bundled" : "MediaInfoLib Missing", tint: runtimeStatus.bundled ? .green : .orange)
                         aboutBadge(runtimeStatus.loaded ? "Runtime Loaded" : "Runtime Not Loaded", tint: runtimeStatus.loaded ? .green : .orange)
+                        aboutBadge(ffmpegStatus.ffmpeg.isAvailable ? "ffmpeg Ready" : "ffmpeg Missing", tint: ffmpegStatus.ffmpeg.isAvailable ? .green : .orange)
+                        aboutBadge(ffmpegStatus.ffprobe.isAvailable ? "ffprobe Ready" : "ffprobe Missing", tint: ffmpegStatus.ffprobe.isAvailable ? .green : .orange)
                     }
                 }
 
@@ -322,6 +337,16 @@ private struct AssetFoxAboutView: View {
                             ("Minimum macOS", "15.0")
                         ]
                     )
+
+                    aboutCard(
+                        title: "FFmpeg Tools",
+                        rows: [
+                            ("ffmpeg", "\(ffmpegStatus.ffmpeg.source.rawValue): \(ffmpegStatus.ffmpeg.displayPath)"),
+                            ("ffprobe", "\(ffmpegStatus.ffprobe.source.rawValue): \(ffmpegStatus.ffprobe.displayPath)"),
+                            ("Bundle path", "Contents/Resources/Tools"),
+                            ("Licensing mode", "LGPL-compatible builds preferred")
+                        ]
+                    )
                 }
 
                 if let runtimeError = runtimeStatus.error {
@@ -341,6 +366,7 @@ private struct AssetFoxAboutView: View {
         .background(Color(nsColor: .windowBackgroundColor))
         .onAppear {
             runtimeStatus = MediaInfoRuntimeStatus.snapshot()
+            ffmpegStatus = FFmpegRuntimeResolver.snapshot()
         }
     }
 
