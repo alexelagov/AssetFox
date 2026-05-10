@@ -6,6 +6,7 @@ struct QualityCheckView: View {
     @State private var viewModel = QualityCheckViewModel()
     @State private var isDropTargeted = false
     @State private var showRawOutput = false
+    @State private var viewerLayoutMode = QualityCheckViewerLayoutMode.fitAll
 
     private let primaryColumnWidth = AssetFoxDesign.primaryColumnWidth
     private let sidebarWidth = AssetFoxDesign.sidebarWidth
@@ -198,14 +199,20 @@ struct QualityCheckView: View {
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(.secondary)
 
-                    if let referenceItem = viewModel.referenceItem {
+                    if let referenceItem = viewModel.manualReferenceItem {
                         Label("Reference: \(referenceItem.name)", systemImage: "checkmark.seal.fill")
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(.green)
                             .lineLimit(1)
+                    } else {
+                        Label("Choose a reference to switch layout", systemImage: "info.circle")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
                     }
 
                     Spacer()
+
+                    viewerLayoutPicker
 
                     Button("Add Videos") {
                         viewModel.chooseVideos()
@@ -218,7 +225,7 @@ struct QualityCheckView: View {
                     .buttonStyle(.bordered)
                 }
 
-                videoStrip(viewerWidth: viewerWidth)
+                videoBrowser(viewerWidth: viewerWidth)
 
                 playbackControls
             }
@@ -274,7 +281,9 @@ struct QualityCheckView: View {
             if viewModel.items.isEmpty {
                 emptyState("No videos loaded yet.", detail: "Choose or drop export files to enable playback.")
             } else {
-                videoStrip(viewerWidth: viewerWidth)
+                viewerLayoutPicker
+
+                videoBrowser(viewerWidth: viewerWidth)
 
                 playbackControls
             }
@@ -363,7 +372,7 @@ struct QualityCheckView: View {
                                         .font(.subheadline.weight(.semibold))
                                         .lineLimit(1)
                                     Spacer()
-                                    if item.id == viewModel.referenceItem?.id {
+                                    if item.id == viewModel.manualReferenceItem?.id {
                                         Text("Reference")
                                             .font(.caption2.weight(.bold))
                                             .padding(.horizontal, 7)
@@ -493,6 +502,82 @@ struct QualityCheckView: View {
         }
     }
 
+    private var viewerLayoutPicker: some View {
+        Picker("Viewer Layout", selection: $viewerLayoutMode) {
+            ForEach(QualityCheckViewerLayoutMode.allCases) { mode in
+                Text(mode.rawValue).tag(mode)
+            }
+        }
+        .pickerStyle(.segmented)
+        .frame(width: 152)
+        .labelsHidden()
+        .help("Fit All keeps loaded videos visible. Large keeps the larger horizontal review strip.")
+    }
+
+    @ViewBuilder
+    private func videoBrowser(viewerWidth: CGFloat) -> some View {
+        switch viewerLayoutMode {
+        case .fitAll:
+            if viewModel.hasManualReference {
+                videoReferenceLayout(viewerWidth: viewerWidth)
+            } else {
+                videoOverviewRow(viewerWidth: viewerWidth)
+            }
+        case .large:
+            videoStrip(viewerWidth: viewerWidth)
+        }
+    }
+
+    private func videoOverviewRow(viewerWidth: CGFloat) -> some View {
+        let items = viewModel.items
+        let tileWidth = overviewTileWidth(viewerWidth: viewerWidth)
+        let previewHeight = overviewPreviewHeight(tileWidth: tileWidth)
+
+        return VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                Label("Select Set Reference to open the focused comparison layout.", systemImage: "info.circle")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                Spacer()
+            }
+
+            HStack(alignment: .top, spacing: 12) {
+                ForEach(items) { item in
+                    videoTile(item, previewHeight: previewHeight, fixedTileWidth: tileWidth)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private func videoReferenceLayout(viewerWidth: CGFloat) -> some View {
+        let reference = viewModel.manualReferenceItem ?? viewModel.referenceItem
+        let comparisonItems = viewModel.items.filter { $0.id != reference?.id }
+        let layout = referenceLayoutMetrics(viewerWidth: viewerWidth, comparisonCount: comparisonItems.count)
+
+        return HStack(alignment: .top, spacing: 12) {
+            if let reference {
+                videoTile(
+                    reference,
+                    previewHeight: referencePreviewHeight(for: reference, tileWidth: layout.referenceTileWidth),
+                    fixedTileWidth: layout.referenceTileWidth
+                )
+            }
+
+            LazyVGrid(columns: layout.comparisonColumns, alignment: .leading, spacing: 12) {
+                ForEach(comparisonItems) { item in
+                    videoTile(
+                        item,
+                        previewHeight: comparisonPreviewHeight(for: item, tileWidth: layout.comparisonTileWidth),
+                        fixedTileWidth: layout.comparisonTileWidth
+                    )
+                }
+            }
+            .frame(width: layout.comparisonColumnWidth, alignment: .topLeading)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
     private func videoStrip(viewerWidth: CGFloat) -> some View {
         let previewHeight = videoPreviewHeight(for: viewerWidth)
 
@@ -512,13 +597,54 @@ struct QualityCheckView: View {
         return min(max(availableGridWidth * 0.28, 340), 560)
     }
 
-    private func videoTileWidth(for item: QualityCheckVideoItem, previewHeight: CGFloat) -> CGFloat {
-        let previewWidth = previewWidth(for: item, previewHeight: previewHeight)
+    private func overviewTileWidth(viewerWidth: CGFloat) -> CGFloat {
+        let count = max(viewModel.items.count, 1)
+        let availableWidth = max(260, viewerWidth - AssetFoxDesign.panelPadding * 2)
+        let totalSpacing = CGFloat(max(count - 1, 0)) * 12
+        return max(132, floor((availableWidth - totalSpacing) / CGFloat(count)))
+    }
+
+    private func overviewPreviewHeight(tileWidth: CGFloat) -> CGFloat {
+        min(max((tileWidth - 24) * 0.68, 118), 260)
+    }
+
+    private func referenceLayoutMetrics(viewerWidth: CGFloat, comparisonCount: Int) -> ReferenceLayoutMetrics {
+        let availableWidth = max(620, viewerWidth - AssetFoxDesign.panelPadding * 2)
+        let referenceTileWidth = min(max(availableWidth * 0.54, 420), availableWidth * 0.64)
+        let comparisonColumnWidth = max(220, availableWidth - referenceTileWidth - 12)
+        let columnCount = comparisonColumnWidth >= 500 && comparisonCount > 1 ? 2 : 1
+        let comparisonSpacing = CGFloat(max(columnCount - 1, 0)) * 12
+        let comparisonTileWidth = max(180, floor((comparisonColumnWidth - comparisonSpacing) / CGFloat(columnCount)))
+        let columns = Array(
+            repeating: GridItem(.fixed(comparisonTileWidth), spacing: 12, alignment: .top),
+            count: columnCount
+        )
+
+        return ReferenceLayoutMetrics(
+            referenceTileWidth: referenceTileWidth,
+            comparisonColumnWidth: comparisonColumnWidth,
+            comparisonTileWidth: comparisonTileWidth,
+            comparisonColumns: columns
+        )
+    }
+
+    private func referencePreviewHeight(for item: QualityCheckVideoItem, tileWidth: CGFloat) -> CGFloat {
+        let previewWidth = max(120, tileWidth - 24)
+        return min(max(previewWidth / max(item.aspectRatioValue, 0.45), 300), 560)
+    }
+
+    private func comparisonPreviewHeight(for item: QualityCheckVideoItem, tileWidth: CGFloat) -> CGFloat {
+        let previewWidth = max(120, tileWidth - 24)
+        return min(max(previewWidth / max(item.aspectRatioValue, 0.45), 120), 250)
+    }
+
+    private func videoTileWidth(for item: QualityCheckVideoItem, previewHeight: CGFloat, minimumPreviewWidth: CGFloat = 260) -> CGFloat {
+        let previewWidth = previewWidth(for: item, previewHeight: previewHeight, minimumWidth: minimumPreviewWidth)
         return previewWidth + 24
     }
 
-    private func previewWidth(for item: QualityCheckVideoItem, previewHeight: CGFloat) -> CGFloat {
-        min(max(previewHeight * item.aspectRatioValue, 260), 980)
+    private func previewWidth(for item: QualityCheckVideoItem, previewHeight: CGFloat, minimumWidth: CGFloat = 260) -> CGFloat {
+        min(max(previewHeight * item.aspectRatioValue, minimumWidth), 980)
     }
 
     private var findingHeader: some View {
@@ -536,10 +662,10 @@ struct QualityCheckView: View {
         .padding(.vertical, 10)
     }
 
-    private func videoTile(_ item: QualityCheckVideoItem, previewHeight: CGFloat) -> some View {
-        let isReference = item.id == viewModel.referenceItem?.id
-        let tileWidth = videoTileWidth(for: item, previewHeight: previewHeight)
-        let previewWidth = previewWidth(for: item, previewHeight: previewHeight)
+    private func videoTile(_ item: QualityCheckVideoItem, previewHeight: CGFloat, minimumPreviewWidth: CGFloat = 260, fixedTileWidth: CGFloat? = nil) -> some View {
+        let isReference = item.id == viewModel.manualReferenceItem?.id
+        let tileWidth = fixedTileWidth ?? videoTileWidth(for: item, previewHeight: previewHeight, minimumPreviewWidth: minimumPreviewWidth)
+        let previewWidth = fixedTileWidth.map { max(80, $0 - 24) } ?? previewWidth(for: item, previewHeight: previewHeight, minimumWidth: minimumPreviewWidth)
 
         return VStack(alignment: .leading, spacing: 10) {
             QualityCheckPlayerView(
@@ -726,6 +852,20 @@ struct QualityCheckView: View {
 
         return accepted
     }
+}
+
+private enum QualityCheckViewerLayoutMode: String, CaseIterable, Identifiable {
+    case fitAll = "Fit All"
+    case large = "Large"
+
+    var id: Self { self }
+}
+
+private struct ReferenceLayoutMetrics {
+    let referenceTileWidth: CGFloat
+    let comparisonColumnWidth: CGFloat
+    let comparisonTileWidth: CGFloat
+    let comparisonColumns: [GridItem]
 }
 
 private struct QualityCheckPlayerView: NSViewRepresentable {

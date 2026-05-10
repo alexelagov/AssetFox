@@ -38,6 +38,15 @@ final class QualityCheckViewModel {
         return items.first(where: { $0.id == referenceItemID }) ?? items.first
     }
 
+    var manualReferenceItem: QualityCheckVideoItem? {
+        guard let referenceItemID else { return nil }
+        return items.first(where: { $0.id == referenceItemID })
+    }
+
+    var hasManualReference: Bool {
+        manualReferenceItem != nil
+    }
+
     var totalDuration: Double {
         items.map(\.durationSeconds).max() ?? 0
     }
@@ -115,9 +124,6 @@ final class QualityCheckViewModel {
             if selectedItemID == nil {
                 selectedItemID = items.first?.id
             }
-            if referenceItemID == nil {
-                referenceItemID = items.first?.id
-            }
             updateAudioRouting()
             findings.removeAll()
             rawOutputs.removeAll()
@@ -139,7 +145,7 @@ final class QualityCheckViewModel {
             selectedItemID = items.first?.id
         }
         if referenceItemID == item.id {
-            referenceItemID = items.first?.id
+            referenceItemID = nil
         }
         updateAudioRouting()
     }
