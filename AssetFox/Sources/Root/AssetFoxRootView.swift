@@ -1,16 +1,16 @@
 import SwiftUI
 
 struct AssetFoxRootView: View {
-    @SceneStorage("assetFox.selectedSection") private var selectedSectionRawValue = AssetFoxSection.duplicateFinder.rawValue
+    @State private var selectedSectionRawValue = AssetFoxSection.qualityCheck.rawValue
 
     private var selectedSection: AssetFoxSection {
-        AssetFoxSection(rawValue: selectedSectionRawValue) ?? .duplicateFinder
+        AssetFoxSection(rawValue: selectedSectionRawValue) ?? .qualityCheck
     }
 
     private var selectedSectionBinding: Binding<AssetFoxSection?> {
         Binding(
-            get: { AssetFoxSection(rawValue: selectedSectionRawValue) ?? .duplicateFinder },
-            set: { selectedSectionRawValue = ($0 ?? .duplicateFinder).rawValue }
+            get: { AssetFoxSection(rawValue: selectedSectionRawValue) ?? .qualityCheck },
+            set: { selectedSectionRawValue = ($0 ?? .qualityCheck).rawValue }
         )
     }
 

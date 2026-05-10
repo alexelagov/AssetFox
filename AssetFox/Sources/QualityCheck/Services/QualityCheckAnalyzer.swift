@@ -44,7 +44,9 @@ struct QualityCheckAnalyzer: Sendable {
         }
 
         await progress("Comparing cut points")
-        findings.append(contentsOf: compareCutPoints(fileAnalyses, referenceItemID: referenceItemID, toleranceFrames: toleranceFrames))
+        if referenceItemID != nil {
+            findings.append(contentsOf: compareCutPoints(fileAnalyses, referenceItemID: referenceItemID, toleranceFrames: toleranceFrames))
+        }
 
         return QualityCheckAnalysisResult(
             findings: findings.sorted { lhs, rhs in
@@ -106,41 +108,90 @@ struct QualityCheckAnalyzer: Sendable {
 
     private func compareCutPoints(_ analyses: [PerFileAnalysis], referenceItemID: UUID?, toleranceFrames: Int) -> [QualityCheckFinding] {
         guard analyses.count >= 2 else { return [] }
-        guard let reference = analyses.first(where: { $0.item.id == referenceItemID }) ?? analyses.first else { return [] }
+        guard let referenceItemID,
+              let reference = analyses.first(where: { $0.item.id == referenceItemID }) else { return [] }
 
         var findings: [QualityCheckFinding] = []
         let frameRate = QualityCheckFormatting.normalizedFrameRate(reference.item.nominalFrameRate)
-        let toleranceSeconds = QualityCheckFormatting.seconds(forFrame: toleranceFrames, frameRate: frameRate)
+        let matchingToleranceFrames = max(toleranceFrames, 5)
+        let clusters = cutPointClusters(
+            analyses,
+            frameRate: frameRate,
+            toleranceFrames: matchingToleranceFrames
+        )
+        let minimumParticipantCount = max(2, Int((Double(analyses.count) * 0.6).rounded(.up)))
 
-        for candidate in analyses where candidate.item.id != reference.item.id {
-            for referenceCut in reference.cutPoints where !candidate.cutPoints.contains(where: { abs($0 - referenceCut) <= toleranceSeconds }) {
+        for cluster in clusters where cluster.participantIDs.count >= minimumParticipantCount && cluster.hasStableTiming(frameTolerance: matchingToleranceFrames) {
+            let participantIDs = cluster.participantIDs
+            guard participantIDs.contains(reference.item.id) else { continue }
+
+            let clusterTime = cluster.referenceTime(for: reference.item.id) ?? cluster.averageTime
+            let details = cutMismatchDetails(
+                toleranceFrames: toleranceFrames,
+                matchingToleranceFrames: matchingToleranceFrames,
+                frameRate: frameRate,
+                participantCount: participantIDs.count,
+                totalCount: analyses.count
+            )
+
+            for candidate in analyses where candidate.item.id != reference.item.id && !participantIDs.contains(candidate.item.id) {
                 findings.append(
                     QualityCheckFinding(
                         severity: .warning,
                         kind: .cutMismatch,
                         fileName: candidate.item.name,
-                        timeSeconds: referenceCut,
-                        message: "Expected cut point is missing compared with \(reference.item.name)",
-                        details: "Tolerance: \(toleranceFrames) frames @ \(String(format: "%.3f", frameRate).replacingOccurrences(of: ".000", with: "")) fps"
-                    )
-                )
-            }
-
-            for candidateCut in candidate.cutPoints where !reference.cutPoints.contains(where: { abs($0 - candidateCut) <= toleranceSeconds }) {
-                findings.append(
-                    QualityCheckFinding(
-                        severity: .warning,
-                        kind: .cutMismatch,
-                        fileName: candidate.item.name,
-                        timeSeconds: candidateCut,
-                        message: "Extra cut point compared with \(reference.item.name)",
-                        details: "Tolerance: \(toleranceFrames) frames @ \(String(format: "%.3f", frameRate).replacingOccurrences(of: ".000", with: "")) fps"
+                        timeSeconds: clusterTime,
+                        message: "Reference cut point is missing in this export",
+                        details: details
                     )
                 )
             }
         }
 
         return findings
+    }
+
+    private func cutPointClusters(
+        _ analyses: [PerFileAnalysis],
+        frameRate: Double,
+        toleranceFrames: Int
+    ) -> [CutPointCluster] {
+        let observations = analyses.flatMap { analysis in
+            analysis.cutPoints.map { cutPoint in
+                CutPointObservation(
+                    itemID: analysis.item.id,
+                    timeSeconds: cutPoint,
+                    frame: QualityCheckFormatting.frameIndex(for: cutPoint, frameRate: frameRate)
+                )
+            }
+        }
+        .sorted { $0.frame < $1.frame }
+
+        var clusters: [CutPointCluster] = []
+        for observation in observations {
+            if let index = clusters.indices.last,
+               observation.frame - clusters[index].lastFrame <= toleranceFrames {
+                clusters[index].append(observation)
+            } else {
+                clusters.append(CutPointCluster(observations: [observation]))
+            }
+        }
+
+        return clusters
+    }
+
+    private func cutMismatchDetails(
+        toleranceFrames: Int,
+        matchingToleranceFrames: Int,
+        frameRate: Double,
+        participantCount: Int,
+        totalCount: Int
+    ) -> String {
+        let frameRateLabel = String(format: "%.3f", frameRate).replacingOccurrences(of: ".000", with: "")
+        if matchingToleranceFrames > toleranceFrames {
+            return "Tolerance: \(toleranceFrames) frames @ \(frameRateLabel) fps; detector guard: \(matchingToleranceFrames) frames; reference-confirmed and detected in \(participantCount)/\(totalCount) exports"
+        }
+        return "Tolerance: \(toleranceFrames) frames @ \(frameRateLabel) fps; reference-confirmed and detected in \(participantCount)/\(totalCount) exports"
     }
 
     private func runFFmpeg(executableURL: URL, arguments: [String]) async -> ProcessResult {
@@ -246,6 +297,57 @@ private struct PerFileAnalysis: Sendable {
     let findings: [QualityCheckFinding]
     let cutPoints: [Double]
     let rawOutput: String
+}
+
+private struct CutPointObservation: Sendable {
+    let itemID: UUID
+    let timeSeconds: Double
+    let frame: Int
+}
+
+private struct CutPointCluster: Sendable {
+    private(set) var observations: [CutPointObservation]
+
+    var participantIDs: Set<UUID> {
+        Set(observations.map(\.itemID))
+    }
+
+    var lastFrame: Int {
+        observations.last?.frame ?? 0
+    }
+
+    var averageTime: Double {
+        guard !observations.isEmpty else { return 0 }
+        return observations.map(\.timeSeconds).reduce(0, +) / Double(observations.count)
+    }
+
+    mutating func append(_ observation: CutPointObservation) {
+        if let existingIndex = observations.firstIndex(where: { $0.itemID == observation.itemID }) {
+            let existing = observations[existingIndex]
+            if abs(observation.frame - centerFrame) < abs(existing.frame - centerFrame) {
+                observations[existingIndex] = observation
+            }
+        } else {
+            observations.append(observation)
+            observations.sort { $0.frame < $1.frame }
+        }
+    }
+
+    func referenceTime(for itemID: UUID) -> Double? {
+        observations.first(where: { $0.itemID == itemID })?.timeSeconds
+    }
+
+    func hasStableTiming(frameTolerance: Int) -> Bool {
+        guard let first = observations.first?.frame,
+              let last = observations.last?.frame else { return false }
+        return last - first <= frameTolerance
+    }
+
+    private var centerFrame: Int {
+        guard !observations.isEmpty else { return 0 }
+        let total = observations.map(\.frame).reduce(0, +)
+        return Int((Double(total) / Double(observations.count)).rounded())
+    }
 }
 
 private struct TimedSegment: Sendable {

@@ -169,10 +169,7 @@ struct QualityCheckFormatting {
         let minutes = (totalSeconds / 60) % 60
         let secs = totalSeconds % 60
 
-        if hours > 0 {
-            return String(format: "%d:%02d:%02d:%02d", hours, minutes, secs, frames)
-        }
-        return String(format: "%d:%02d:%02d", minutes, secs, frames)
+        return String(format: "%02d:%02d:%02d:%02d", hours, minutes, secs, frames)
     }
 
     static func formatFrameDuration(_ seconds: Double, frameRate: Double) -> String {

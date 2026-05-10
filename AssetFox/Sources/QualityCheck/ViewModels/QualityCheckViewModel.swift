@@ -276,6 +276,24 @@ final class QualityCheckViewModel {
         }
     }
 
+    func exportFindingsTXT() {
+        guard !findings.isEmpty else { return }
+
+        let panel = NSSavePanel()
+        panel.title = "Export QC Results"
+        panel.nameFieldStringValue = defaultFindingsExportName
+        panel.allowedContentTypes = [.plainText]
+        panel.canCreateDirectories = true
+
+        if panel.runModal() == .OK, let url = panel.url {
+            do {
+                try findingsReportText().write(to: url, atomically: true, encoding: .utf8)
+            } catch {
+                errorMessage = "Could not export QC results: \(error.localizedDescription)"
+            }
+        }
+    }
+
     func cancelAnalysis() {
         analysisTask?.cancel()
         analysisTask = nil
@@ -336,5 +354,40 @@ final class QualityCheckViewModel {
 
     private func shouldMutePlayer(id: UUID) -> Bool {
         isAudioMuted || id != referenceItem?.id
+    }
+
+    private var defaultFindingsExportName: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyyMMdd-HHmmss"
+        return "assetfox-qc-results-\(formatter.string(from: Date())).txt"
+    }
+
+    private func findingsReportText() -> String {
+        let referenceName = manualReferenceItem?.name ?? "Not selected"
+        let generatedAt = ISO8601DateFormatter().string(from: Date())
+        let lines = findings.map { finding in
+            let frameRate = frameRate(for: finding)
+            let timecode = QualityCheckFormatting.formatFrameTimecode(finding.timeSeconds, frameRate: frameRate)
+            let duration = finding.durationSeconds.map { QualityCheckFormatting.formatFrameDuration($0, frameRate: frameRate) } ?? "-"
+            let details = finding.details.map { "\n  Details: \($0)" } ?? ""
+
+            return """
+            [\(finding.severity.rawValue)] \(finding.kind.rawValue)
+              File: \(finding.fileName)
+              Timecode: \(timecode)
+              Duration: \(duration)
+              Message: \(finding.message)\(details)
+            """
+        }
+
+        return """
+        AssetFox Quality Check Results
+        Generated: \(generatedAt)
+        Reference: \(referenceName)
+        Videos: \(items.count)
+        Findings: \(findings.count)
+
+        \(lines.joined(separator: "\n\n"))
+        """
     }
 }

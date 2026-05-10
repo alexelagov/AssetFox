@@ -6,10 +6,11 @@ struct QualityCheckView: View {
     @State private var viewModel = QualityCheckViewModel()
     @State private var isDropTargeted = false
     @State private var showRawOutput = false
-    @State private var viewerLayoutMode = QualityCheckViewerLayoutMode.fitAll
+    @SceneStorage("assetFox.qualityCheckInspectorVisible") private var isInspectorVisible = true
 
     private let primaryColumnWidth = AssetFoxDesign.primaryColumnWidth
     private let sidebarWidth = AssetFoxDesign.sidebarWidth
+    private let collapsedInspectorWidth: CGFloat = 44
     private let workspaceSpacing = AssetFoxDesign.workspaceSpacing
     private let wideModeExtraWidth: CGFloat = 240
 
@@ -98,9 +99,11 @@ struct QualityCheckView: View {
     }
 
     private func wideWorkspace(contentWidth: CGFloat) -> some View {
-        let mainColumnWidth = max(primaryColumnWidth, contentWidth - sidebarWidth - workspaceSpacing)
+        let inspectorWidth = isInspectorVisible ? sidebarWidth : collapsedInspectorWidth
+        let spacing = isInspectorVisible ? workspaceSpacing : 12
+        let mainColumnWidth = max(primaryColumnWidth, contentWidth - inspectorWidth - spacing)
 
-        return HStack(alignment: .top, spacing: workspaceSpacing) {
+        return HStack(alignment: .top, spacing: spacing) {
             VStack(alignment: .leading, spacing: 24) {
                 wideViewerPanel(viewerWidth: mainColumnWidth)
                 if viewModel.isAnalyzing || !viewModel.findings.isEmpty {
@@ -109,7 +112,36 @@ struct QualityCheckView: View {
             }
             .frame(width: mainColumnWidth, alignment: .topLeading)
 
+            inspectorColumn
+                .frame(width: inspectorWidth, alignment: .topLeading)
+                .animation(.easeInOut(duration: 0.18), value: isInspectorVisible)
+        }
+    }
+
+    @ViewBuilder
+    private var inspectorColumn: some View {
+        if isInspectorVisible {
             VStack(alignment: .leading, spacing: 24) {
+                HStack(spacing: 8) {
+                    Label("Review Tools", systemImage: "sidebar.right")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+
+                    Spacer()
+
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.18)) {
+                            isInspectorVisible = false
+                        }
+                    } label: {
+                        Image(systemName: "chevron.right")
+                    }
+                    .labelStyle(.iconOnly)
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .help("Hide Selection, Analysis, and Diagnostics.")
+                }
+
                 metadataPanel
                 analysisPanel
                 if !viewModel.isAnalyzing && viewModel.findings.isEmpty {
@@ -117,7 +149,30 @@ struct QualityCheckView: View {
                 }
                 rawOutputPanel
             }
-            .frame(width: sidebarWidth, alignment: .topLeading)
+        } else {
+            VStack(spacing: 12) {
+                Button {
+                    withAnimation(.easeInOut(duration: 0.18)) {
+                        isInspectorVisible = true
+                    }
+                } label: {
+                    Image(systemName: "chevron.left")
+                }
+                .labelStyle(.iconOnly)
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .help("Show Selection, Analysis, and Diagnostics.")
+
+                Text("Tools")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .rotationEffect(.degrees(-90))
+                    .fixedSize()
+                    .frame(height: 58)
+            }
+            .padding(.vertical, 10)
+            .frame(maxWidth: .infinity, minHeight: 116, alignment: .top)
+            .background(AssetFoxPanelBackground())
         }
     }
 
@@ -205,14 +260,12 @@ struct QualityCheckView: View {
                             .foregroundStyle(.green)
                             .lineLimit(1)
                     } else {
-                        Label("Choose a reference to switch layout", systemImage: "info.circle")
+                        Label("Choose a reference before analysis", systemImage: "exclamationmark.circle.fill")
                             .font(.caption.weight(.semibold))
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(.orange)
                     }
 
                     Spacer()
-
-                    viewerLayoutPicker
 
                     Button("Add Videos") {
                         viewModel.chooseVideos()
@@ -281,8 +334,6 @@ struct QualityCheckView: View {
             if viewModel.items.isEmpty {
                 emptyState("No videos loaded yet.", detail: "Choose or drop export files to enable playback.")
             } else {
-                viewerLayoutPicker
-
                 videoBrowser(viewerWidth: viewerWidth)
 
                 playbackControls
@@ -292,14 +343,7 @@ struct QualityCheckView: View {
 
     private var playbackControls: some View {
         VStack(spacing: 12) {
-            Slider(
-                value: Binding(
-                    get: { Double(viewModel.currentFrame) },
-                    set: { viewModel.seekAll(toFrame: Int($0.rounded())) }
-                ),
-                in: 0...max(Double(viewModel.totalFrames), 1),
-                step: 1
-            )
+            timelineSlider
 
             HStack(spacing: 12) {
                 Button {
@@ -354,6 +398,67 @@ struct QualityCheckView: View {
                 Spacer()
             }
         }
+    }
+
+    private var timelineSlider: some View {
+        ZStack(alignment: .leading) {
+            Slider(
+                value: Binding(
+                    get: { Double(viewModel.currentFrame) },
+                    set: { viewModel.seekAll(toFrame: Int($0.rounded())) }
+                ),
+                in: 0...max(Double(viewModel.totalFrames), 1),
+                step: 1
+            )
+
+            if !viewModel.findings.isEmpty && viewModel.totalDuration > 0 {
+                timelineFindingMarkers
+                    .padding(.horizontal, 8)
+                    .allowsHitTesting(true)
+            }
+        }
+        .frame(height: 22)
+        .help(viewModel.findings.isEmpty ? "Scrub frame by frame." : "Finding markers are clickable and jump playback to that frame.")
+    }
+
+    private var timelineFindingMarkers: some View {
+        GeometryReader { proxy in
+            let width = max(proxy.size.width, 1)
+
+            ZStack(alignment: .leading) {
+                ForEach(viewModel.findings) { finding in
+                    timelineMarker(for: finding, in: width)
+                }
+            }
+            .frame(width: width, height: proxy.size.height, alignment: .leading)
+        }
+        .frame(height: 18)
+    }
+
+    private func timelineMarker(for finding: QualityCheckFinding, in width: CGFloat) -> some View {
+        let totalDuration = max(viewModel.totalDuration, 0.001)
+        let startRatio = min(max(finding.timeSeconds / totalDuration, 0), 1)
+        let durationRatio = min(max((finding.durationSeconds ?? 0) / totalDuration, 0), 1)
+        let markerWidth = finding.durationSeconds == nil ? 5 : max(5, width * CGFloat(durationRatio))
+        let xPosition = min(max(width * CGFloat(startRatio), 0), max(width - markerWidth, 0))
+        let tint = severityColor(finding.severity)
+
+        return Button {
+            viewModel.seek(to: finding)
+        } label: {
+            RoundedRectangle(cornerRadius: 2, style: .continuous)
+                .fill(tint)
+                .frame(width: markerWidth, height: finding.durationSeconds == nil ? 14 : 6)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 2, style: .continuous)
+                        .strokeBorder(Color.black.opacity(0.35), lineWidth: 0.5)
+                )
+                .shadow(color: tint.opacity(0.35), radius: 2, y: 1)
+        }
+        .buttonStyle(.plain)
+        .offset(x: xPosition, y: finding.durationSeconds == nil ? 2 : 6)
+        .help("\(finding.severity.rawValue): \(finding.fileName) at \(QualityCheckFormatting.formatFrameTimecode(finding.timeSeconds, frameRate: viewModel.frameRate(for: finding)))")
+        .accessibilityLabel("\(finding.severity.rawValue) finding at \(QualityCheckFormatting.formatFrameTimecode(finding.timeSeconds, frameRate: viewModel.frameRate(for: finding)))")
     }
 
     private var metadataPanel: some View {
@@ -457,17 +562,34 @@ struct QualityCheckView: View {
             if viewModel.findings.isEmpty {
                 emptyState(viewModel.isAnalyzing ? "Analysis running." : "No findings yet.", detail: viewModel.isAnalyzing ? viewModel.analysisStatus : "Run Analyze after loading videos.")
             } else {
-                VStack(spacing: 0) {
-                    findingHeader
-                    ForEach(viewModel.findings) { finding in
-                        findingRow(finding)
-                        Divider()
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack {
+                        Text("\(viewModel.findings.count) finding\(viewModel.findings.count == 1 ? "" : "s")")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Button {
+                            viewModel.exportFindingsTXT()
+                        } label: {
+                            Label("Export TXT", systemImage: "square.and.arrow.up")
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .help("Export QC results as a plain text report.")
                     }
+
+                    VStack(spacing: 0) {
+                        findingHeader
+                        ForEach(viewModel.findings) { finding in
+                            findingRow(finding)
+                            Divider()
+                        }
+                    }
+                    .background(
+                        RoundedRectangle(cornerRadius: AssetFoxDesign.innerRadius, style: .continuous)
+                            .fill(Color(nsColor: .controlBackgroundColor))
+                    )
                 }
-                .background(
-                    RoundedRectangle(cornerRadius: AssetFoxDesign.innerRadius, style: .continuous)
-                        .fill(Color(nsColor: .controlBackgroundColor))
-                )
             }
         }
     }
@@ -502,29 +624,12 @@ struct QualityCheckView: View {
         }
     }
 
-    private var viewerLayoutPicker: some View {
-        Picker("Viewer Layout", selection: $viewerLayoutMode) {
-            ForEach(QualityCheckViewerLayoutMode.allCases) { mode in
-                Text(mode.rawValue).tag(mode)
-            }
-        }
-        .pickerStyle(.segmented)
-        .frame(width: 152)
-        .labelsHidden()
-        .help("Fit All keeps loaded videos visible. Large keeps the larger horizontal review strip.")
-    }
-
     @ViewBuilder
     private func videoBrowser(viewerWidth: CGFloat) -> some View {
-        switch viewerLayoutMode {
-        case .fitAll:
-            if viewModel.hasManualReference {
-                videoReferenceLayout(viewerWidth: viewerWidth)
-            } else {
-                videoOverviewRow(viewerWidth: viewerWidth)
-            }
-        case .large:
-            videoStrip(viewerWidth: viewerWidth)
+        if viewModel.hasManualReference {
+            videoReferenceLayout(viewerWidth: viewerWidth)
+        } else {
+            videoOverviewRow(viewerWidth: viewerWidth)
         }
     }
 
@@ -534,20 +639,42 @@ struct QualityCheckView: View {
         let previewHeight = overviewPreviewHeight(tileWidth: tileWidth)
 
         return VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 8) {
-                Label("Select Set Reference to open the focused comparison layout.", systemImage: "info.circle")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                Spacer()
-            }
+            referenceSelectionCallout
 
             HStack(alignment: .top, spacing: 12) {
                 ForEach(items) { item in
-                    videoTile(item, previewHeight: previewHeight, fixedTileWidth: tileWidth)
+                    videoTile(item, previewSize: CGSize(width: max(80, tileWidth - 24), height: previewHeight), fixedTileWidth: tileWidth)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
+    }
+
+    private var referenceSelectionCallout: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "scope")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(Color.accentColor)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Select Set Reference before QC")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.primary)
+                Text("Reference selection makes cut-point comparison deterministic and opens the focused review layout.")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer(minLength: 12)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(Color.accentColor.opacity(0.10))
+        .overlay(
+            RoundedRectangle(cornerRadius: AssetFoxDesign.innerRadius, style: .continuous)
+                .strokeBorder(Color.accentColor.opacity(0.24), lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: AssetFoxDesign.innerRadius, style: .continuous))
     }
 
     private func videoReferenceLayout(viewerWidth: CGFloat) -> some View {
@@ -557,18 +684,20 @@ struct QualityCheckView: View {
 
         return HStack(alignment: .top, spacing: 12) {
             if let reference {
+                let previewSize = sixteenByNinePreviewSize(tileWidth: layout.referenceTileWidth)
                 videoTile(
                     reference,
-                    previewHeight: referencePreviewHeight(for: reference, tileWidth: layout.referenceTileWidth),
+                    previewSize: previewSize,
                     fixedTileWidth: layout.referenceTileWidth
                 )
             }
 
             LazyVGrid(columns: layout.comparisonColumns, alignment: .leading, spacing: 12) {
                 ForEach(comparisonItems) { item in
+                    let previewSize = sixteenByNinePreviewSize(tileWidth: layout.comparisonTileWidth)
                     videoTile(
                         item,
-                        previewHeight: comparisonPreviewHeight(for: item, tileWidth: layout.comparisonTileWidth),
+                        previewSize: previewSize,
                         fixedTileWidth: layout.comparisonTileWidth
                     )
                 }
@@ -576,25 +705,6 @@ struct QualityCheckView: View {
             .frame(width: layout.comparisonColumnWidth, alignment: .topLeading)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private func videoStrip(viewerWidth: CGFloat) -> some View {
-        let previewHeight = videoPreviewHeight(for: viewerWidth)
-
-        return ScrollView(.horizontal) {
-            HStack(alignment: .top, spacing: 12) {
-                ForEach(viewModel.items) { item in
-                    videoTile(item, previewHeight: previewHeight)
-                }
-            }
-            .padding(.bottom, 2)
-        }
-        .scrollIndicators(.visible)
-    }
-
-    private func videoPreviewHeight(for viewerWidth: CGFloat) -> CGFloat {
-        let availableGridWidth = max(320, viewerWidth - AssetFoxDesign.panelPadding * 2)
-        return min(max(availableGridWidth * 0.28, 340), 560)
     }
 
     private func overviewTileWidth(viewerWidth: CGFloat) -> CGFloat {
@@ -628,23 +738,9 @@ struct QualityCheckView: View {
         )
     }
 
-    private func referencePreviewHeight(for item: QualityCheckVideoItem, tileWidth: CGFloat) -> CGFloat {
+    private func sixteenByNinePreviewSize(tileWidth: CGFloat) -> CGSize {
         let previewWidth = max(120, tileWidth - 24)
-        return min(max(previewWidth / max(item.aspectRatioValue, 0.45), 300), 560)
-    }
-
-    private func comparisonPreviewHeight(for item: QualityCheckVideoItem, tileWidth: CGFloat) -> CGFloat {
-        let previewWidth = max(120, tileWidth - 24)
-        return min(max(previewWidth / max(item.aspectRatioValue, 0.45), 120), 250)
-    }
-
-    private func videoTileWidth(for item: QualityCheckVideoItem, previewHeight: CGFloat, minimumPreviewWidth: CGFloat = 260) -> CGFloat {
-        let previewWidth = previewWidth(for: item, previewHeight: previewHeight, minimumWidth: minimumPreviewWidth)
-        return previewWidth + 24
-    }
-
-    private func previewWidth(for item: QualityCheckVideoItem, previewHeight: CGFloat, minimumWidth: CGFloat = 260) -> CGFloat {
-        min(max(previewHeight * item.aspectRatioValue, minimumWidth), 980)
+        return CGSize(width: previewWidth, height: previewWidth * 9 / 16)
     }
 
     private var findingHeader: some View {
@@ -662,10 +758,8 @@ struct QualityCheckView: View {
         .padding(.vertical, 10)
     }
 
-    private func videoTile(_ item: QualityCheckVideoItem, previewHeight: CGFloat, minimumPreviewWidth: CGFloat = 260, fixedTileWidth: CGFloat? = nil) -> some View {
+    private func videoTile(_ item: QualityCheckVideoItem, previewSize: CGSize, fixedTileWidth: CGFloat) -> some View {
         let isReference = item.id == viewModel.manualReferenceItem?.id
-        let tileWidth = fixedTileWidth ?? videoTileWidth(for: item, previewHeight: previewHeight, minimumPreviewWidth: minimumPreviewWidth)
-        let previewWidth = fixedTileWidth.map { max(80, $0 - 24) } ?? previewWidth(for: item, previewHeight: previewHeight, minimumWidth: minimumPreviewWidth)
 
         return VStack(alignment: .leading, spacing: 10) {
             QualityCheckPlayerView(
@@ -680,7 +774,7 @@ struct QualityCheckView: View {
                     viewModel.stepForward()
                 }
             )
-                .frame(width: previewWidth, height: previewHeight)
+                .frame(width: previewSize.width, height: previewSize.height)
                 .background(Color.black)
                 .clipShape(RoundedRectangle(cornerRadius: AssetFoxDesign.innerRadius, style: .continuous))
 
@@ -718,7 +812,7 @@ struct QualityCheckView: View {
             }
         }
         .padding(12)
-        .frame(width: tileWidth, alignment: .topLeading)
+        .frame(width: fixedTileWidth, alignment: .topLeading)
         .background(
             RoundedRectangle(cornerRadius: AssetFoxDesign.innerRadius, style: .continuous)
                 .fill(isReference ? Color.green.opacity(0.08) : Color(nsColor: .controlBackgroundColor))
@@ -852,13 +946,6 @@ struct QualityCheckView: View {
 
         return accepted
     }
-}
-
-private enum QualityCheckViewerLayoutMode: String, CaseIterable, Identifiable {
-    case fitAll = "Fit All"
-    case large = "Large"
-
-    var id: Self { self }
 }
 
 private struct ReferenceLayoutMetrics {
