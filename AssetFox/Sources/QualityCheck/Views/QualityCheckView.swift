@@ -503,6 +503,13 @@ struct QualityCheckView: View {
                             )
                         }
                         .buttonStyle(.plain)
+                        .contextMenu {
+                            Button {
+                                viewModel.revealInFinder(item)
+                            } label: {
+                                Label("Reveal in Finder", systemImage: "folder")
+                            }
+                        }
                     }
                 }
             }

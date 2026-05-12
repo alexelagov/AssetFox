@@ -11,3 +11,4 @@ xcuserdata/
 *.dmg
 *.xcworkspace/xcuserdata/
 *.xcodeproj/xcuserdata/
+Config/Telemetry.local.xcconfig

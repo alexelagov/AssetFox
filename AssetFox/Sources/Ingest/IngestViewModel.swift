@@ -393,6 +393,12 @@ final class IngestViewModel {
             warnings: runWarnings,
             errors: []
         )
+        Task {
+            await TelemetryService.shared.track(.ingestStarted, properties: [
+                "file_count": .int(scanResult.fileCount),
+                "verification_enabled": .bool(verificationEnabled)
+            ])
+        }
 
         let metadata = IngestJobMetadata(jobName: jobName, reelName: reelName, priority: priority)
         let settings = IngestJobSettings(
@@ -462,6 +468,11 @@ final class IngestViewModel {
                     destinationURL: destinationURL,
                     reportWriter: reportWriter
                 )
+                await TelemetryService.shared.track(.ingestCompleted, properties: [
+                    "file_count": .int(result.totalFiles),
+                    "verification_enabled": .bool(verificationEnabled),
+                    "failed_count": .int(result.mismatchCount + result.verificationFailureCount + result.errors.count)
+                ])
                 self.copyTask = nil
             } catch is CancellationError {
                 self.elapsedTime = self.ingestStartedAt.map { Date().timeIntervalSince($0) } ?? 0

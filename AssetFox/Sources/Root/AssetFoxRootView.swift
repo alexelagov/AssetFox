@@ -2,6 +2,7 @@ import SwiftUI
 
 struct AssetFoxRootView: View {
     @State private var selectedSectionRawValue = AssetFoxSection.qualityCheck.rawValue
+    @State private var didTrackLaunch = false
 
     private var selectedSection: AssetFoxSection {
         AssetFoxSection(rawValue: selectedSectionRawValue) ?? .qualityCheck
@@ -10,7 +11,12 @@ struct AssetFoxRootView: View {
     private var selectedSectionBinding: Binding<AssetFoxSection?> {
         Binding(
             get: { AssetFoxSection(rawValue: selectedSectionRawValue) ?? .qualityCheck },
-            set: { selectedSectionRawValue = ($0 ?? .qualityCheck).rawValue }
+            set: { newSection in
+                let section = newSection ?? .qualityCheck
+                guard selectedSectionRawValue != section.rawValue else { return }
+                selectedSectionRawValue = section.rawValue
+                trackSectionOpen(section)
+            }
         )
     }
 
@@ -39,6 +45,14 @@ struct AssetFoxRootView: View {
                 .navigationTitle(selectedSection.title)
         }
         .focusedSceneValue(\.assetFoxSectionSelection, selectedSectionBinding)
+        .task {
+            guard !didTrackLaunch else { return }
+            didTrackLaunch = true
+            await TelemetryService.shared.track(.appLaunched)
+            await TelemetryService.shared.track(.sectionOpened, properties: [
+                "section": .string(selectedSection.telemetryName)
+            ])
+        }
     }
 
     @ViewBuilder
@@ -69,6 +83,14 @@ struct AssetFoxRootView: View {
             MediaInfoView()
         case .about:
             AssetFoxAboutView()
+        }
+    }
+
+    private func trackSectionOpen(_ section: AssetFoxSection) {
+        Task {
+            await TelemetryService.shared.track(.sectionOpened, properties: [
+                "section": .string(section.telemetryName)
+            ])
         }
     }
 }
@@ -160,6 +182,23 @@ enum AssetFoxSection: String, CaseIterable, Identifiable {
             "5"
         case .about:
             "6"
+        }
+    }
+
+    var telemetryName: String {
+        switch self {
+        case .qualityCheck:
+            "quality_check"
+        case .duplicateFinder:
+            "duplicate_finder"
+        case .collectMedia:
+            "collect_media"
+        case .ingest:
+            "ingest"
+        case .mediaInfo:
+            "media_info"
+        case .about:
+            "about"
         }
     }
 }
@@ -357,6 +396,8 @@ private struct AssetFoxAboutView: View {
                         ]
                     )
                 }
+
+                telemetryCard
             }
             .frame(maxWidth: 1104)
             .padding(.horizontal, AssetFoxDesign.pageHorizontalPadding)
@@ -387,6 +428,21 @@ private struct AssetFoxAboutView: View {
                     }
                 }
             }
+        }
+        .padding(22)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            AssetFoxPanelBackground()
+        )
+    }
+
+    private var telemetryCard: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Analytics".uppercased())
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+
+            AssetFoxTelemetrySettingsView()
         }
         .padding(22)
         .frame(maxWidth: .infinity, alignment: .leading)

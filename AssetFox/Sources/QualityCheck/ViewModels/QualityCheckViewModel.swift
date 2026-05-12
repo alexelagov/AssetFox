@@ -127,6 +127,10 @@ final class QualityCheckViewModel {
             updateAudioRouting()
             findings.removeAll()
             rawOutputs.removeAll()
+
+            await TelemetryService.shared.track(.qcFilesAdded, properties: [
+                "count": .int(loadedItems.count)
+            ])
         }
     }
 
@@ -148,6 +152,10 @@ final class QualityCheckViewModel {
             referenceItemID = nil
         }
         updateAudioRouting()
+    }
+
+    func revealInFinder(_ item: QualityCheckVideoItem) {
+        NSWorkspace.shared.activateFileViewerSelecting([item.url])
     }
 
     func clear() {
@@ -251,9 +259,14 @@ final class QualityCheckViewModel {
         let itemsToAnalyze = items
         let referenceID = referenceItem?.id
         let tolerance = toleranceFrames
+        let startedAt = Date()
 
         analysisTask = Task { [weak self] in
             do {
+                await TelemetryService.shared.track(.qcAnalysisStarted, properties: [
+                    "file_count": .int(itemsToAnalyze.count)
+                ])
+
                 let result = try await analyzer.analyze(items: itemsToAnalyze, referenceItemID: referenceID, toleranceFrames: tolerance) { status in
                     await MainActor.run {
                         self?.analysisStatus = status
@@ -265,13 +278,25 @@ final class QualityCheckViewModel {
                 self?.rawOutputs = result.rawOutputs
                 self?.analysisStatus = result.findings.isEmpty ? "No findings" : "\(result.findings.count) findings"
                 self?.isAnalyzing = false
+
+                let durationMS = Int(Date().timeIntervalSince(startedAt) * 1000)
+                await TelemetryService.shared.track(.qcAnalysisCompleted, properties: [
+                    "duration_ms": .int(durationMS),
+                    "findings_count": .int(result.findings.count)
+                ])
             } catch is CancellationError {
                 self?.analysisStatus = "Cancelled"
                 self?.isAnalyzing = false
+                await TelemetryService.shared.track(.qcAnalysisFailed, properties: [
+                    "reason_code": .string("cancelled")
+                ])
             } catch {
                 self?.errorMessage = error.localizedDescription
                 self?.analysisStatus = "Failed"
                 self?.isAnalyzing = false
+                await TelemetryService.shared.track(.qcAnalysisFailed, properties: [
+                    "reason_code": .string("analyzer_error")
+                ])
             }
         }
     }

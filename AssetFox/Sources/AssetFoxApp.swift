@@ -27,6 +27,12 @@ struct AssetFoxApp: App {
             SidebarCommands()
             AssetFoxNavigationCommands()
         }
+
+        Settings {
+            AssetFoxTelemetrySettingsView()
+                .padding(24)
+                .frame(width: 520)
+        }
     }
 }
 

@@ -45,6 +45,8 @@
 		A036 /* QualityCheckAnalyzer.swift in Sources */ = {isa = PBXBuildFile; fileRef = F039 /* QualityCheckAnalyzer.swift */; };
 		A037 /* QualityCheckViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F040 /* QualityCheckViewModel.swift */; };
 		A038 /* QualityCheckView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F041 /* QualityCheckView.swift */; };
+		A039 /* TelemetryService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F042 /* TelemetryService.swift */; };
+		A040 /* TelemetrySettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F043 /* TelemetrySettingsView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -89,6 +91,8 @@
 		F039 /* QualityCheckAnalyzer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QualityCheckAnalyzer.swift; sourceTree = "<group>"; };
 		F040 /* QualityCheckViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QualityCheckViewModel.swift; sourceTree = "<group>"; };
 		F041 /* QualityCheckView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QualityCheckView.swift; sourceTree = "<group>"; };
+		F042 /* TelemetryService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TelemetryService.swift; sourceTree = "<group>"; };
+		F043 /* TelemetrySettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TelemetrySettingsView.swift; sourceTree = "<group>"; };
 		FAPP /* AssetFox.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AssetFox.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -160,6 +164,7 @@
 				GRP_VIEWS /* Sources/Views */,
 				GRP_SERVICES /* Sources/Services */,
 				GRP_RUNTIME /* Sources/Runtime */,
+				GRP_TELEMETRY /* Sources/Telemetry */,
 				GRP_COLLECT_MEDIA /* Sources/CollectMedia */,
 				GRP_INGEST /* Sources/Ingest */,
 				GRP_MEDIA_INFO /* Sources/MediaInfo */,
@@ -323,6 +328,15 @@
 			path = Sources/Runtime;
 			sourceTree = "<group>";
 		};
+		GRP_TELEMETRY /* Sources/Telemetry */ = {
+			isa = PBXGroup;
+			children = (
+				F042 /* TelemetryService.swift */,
+				F043 /* TelemetrySettingsView.swift */,
+			);
+			path = Sources/Telemetry;
+			sourceTree = "<group>";
+		};
 		GRP_SERVICES /* Sources/Services */ = {
 			isa = PBXGroup;
 			children = (
@@ -455,6 +469,8 @@
 				A036 /* QualityCheckAnalyzer.swift in Sources */,
 				A037 /* QualityCheckViewModel.swift in Sources */,
 				A038 /* QualityCheckView.swift in Sources */,
+				A039 /* TelemetryService.swift in Sources */,
+				A040 /* TelemetrySettingsView.swift in Sources */,
 				A006 /* DropZoneView.swift in Sources */,
 				A007 /* ScanProgressView.swift in Sources */,
 				A008 /* ResultsView.swift in Sources */,
@@ -589,10 +605,11 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETFOX_TELEMETRY_API_KEY = "";
 					CODE_SIGN_ENTITLEMENTS = AssetFox/AssetFox.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-					CURRENT_PROJECT_VERSION = 10;
+					CURRENT_PROJECT_VERSION = 11;
 				LIBRARY_SEARCH_PATHS = (
 					"$(inherited)",
 					"$(PROJECT_DIR)/AssetFox/Vendor/MediaInfoLib",
@@ -611,7 +628,7 @@
 					"$(inherited)",
 					"-lmediainfo",
 				);
-					MARKETING_VERSION = 0.4.1;
+					MARKETING_VERSION = 0.4.2;
 					PRODUCT_BUNDLE_IDENTIFIER = com.postprod.assetfox;
 					PRODUCT_NAME = AssetFox;
 				SDKROOT = macosx;
@@ -626,10 +643,11 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETFOX_TELEMETRY_API_KEY = "";
 					CODE_SIGN_ENTITLEMENTS = AssetFox/AssetFox.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-					CURRENT_PROJECT_VERSION = 10;
+					CURRENT_PROJECT_VERSION = 11;
 				LIBRARY_SEARCH_PATHS = (
 					"$(inherited)",
 					"$(PROJECT_DIR)/AssetFox/Vendor/MediaInfoLib",
@@ -648,7 +666,7 @@
 					"$(inherited)",
 					"-lmediainfo",
 				);
-					MARKETING_VERSION = 0.4.1;
+					MARKETING_VERSION = 0.4.2;
 					PRODUCT_BUNDLE_IDENTIFIER = com.postprod.assetfox;
 					PRODUCT_NAME = AssetFox;
 				SDKROOT = macosx;

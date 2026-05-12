@@ -118,6 +118,9 @@ final class CollectMediaViewModel {
         let run = service.makeRun(request: request)
         activeRun = run
         appendLog("Starting collect in background...")
+        Task {
+            await TelemetryService.shared.track(.collectMediaStarted)
+        }
 
         progressTask?.cancel()
         progressTask = Task { [weak self] in
@@ -176,6 +179,12 @@ final class CollectMediaViewModel {
         resultTask = nil
         summary = result
         appendLog(result.status == .completed ? "Done." : "Stopped by user.")
+        Task {
+            await TelemetryService.shared.track(.collectMediaCompleted, properties: [
+                "copied_count": .int(result.counts.copied),
+                "missing_count": .int(result.counts.missing)
+            ])
+        }
     }
 
     private func fail(with error: Error) {

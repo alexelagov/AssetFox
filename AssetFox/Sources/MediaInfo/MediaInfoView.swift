@@ -551,11 +551,20 @@ struct MediaInfoView: View {
 
         guard !newItems.isEmpty else { return }
 
+        let previousCount = items.count
         items = (items + newItems).uniqued(by: \.url)
+        let addedCount = max(0, items.count - previousCount)
         if selectedID == nil {
             selectedID = items.first?.id
         }
         compareSelection.formIntersection(Set(items.map(\.id)))
+        if addedCount > 0 {
+            Task {
+                await TelemetryService.shared.track(.mediaInfoFilesAdded, properties: [
+                    "count": .int(addedCount)
+                ])
+            }
+        }
     }
 
     @MainActor
@@ -803,6 +812,11 @@ struct MediaInfoView: View {
             let report = buildMetadataReport(for: selectedItem, sections: sections)
             try report.write(to: destinationURL, atomically: true, encoding: .utf8)
             exportFeedback = "Saved metadata report to \(destinationURL.lastPathComponent)"
+            Task {
+                await TelemetryService.shared.track(.mediaInfoExported, properties: [
+                    "format": .string("txt")
+                ])
+            }
         } catch {
             exportFeedback = "Could not save metadata report: \(error.localizedDescription)"
         }
