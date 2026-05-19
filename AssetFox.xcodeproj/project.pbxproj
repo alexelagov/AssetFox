@@ -609,7 +609,7 @@
 					CODE_SIGN_ENTITLEMENTS = AssetFox/AssetFox.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-					CURRENT_PROJECT_VERSION = 11;
+					CURRENT_PROJECT_VERSION = 12;
 				LIBRARY_SEARCH_PATHS = (
 					"$(inherited)",
 					"$(PROJECT_DIR)/AssetFox/Vendor/MediaInfoLib",
@@ -628,7 +628,7 @@
 					"$(inherited)",
 					"-lmediainfo",
 				);
-					MARKETING_VERSION = 0.4.2;
+					MARKETING_VERSION = 0.4.3;
 					PRODUCT_BUNDLE_IDENTIFIER = com.postprod.assetfox;
 					PRODUCT_NAME = AssetFox;
 				SDKROOT = macosx;
@@ -647,7 +647,7 @@
 					CODE_SIGN_ENTITLEMENTS = AssetFox/AssetFox.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-					CURRENT_PROJECT_VERSION = 11;
+					CURRENT_PROJECT_VERSION = 12;
 				LIBRARY_SEARCH_PATHS = (
 					"$(inherited)",
 					"$(PROJECT_DIR)/AssetFox/Vendor/MediaInfoLib",
@@ -666,7 +666,7 @@
 					"$(inherited)",
 					"-lmediainfo",
 				);
-					MARKETING_VERSION = 0.4.2;
+					MARKETING_VERSION = 0.4.3;
 					PRODUCT_BUNDLE_IDENTIFIER = com.postprod.assetfox;
 					PRODUCT_NAME = AssetFox;
 				SDKROOT = macosx;

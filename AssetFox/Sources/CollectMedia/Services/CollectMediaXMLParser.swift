@@ -30,6 +30,16 @@ struct CollectMediaXMLParser {
                 continue
             }
 
+            guard CollectMediaPathFilter.isSupportedMediaPath(sourcePath) else {
+                parserRows.append(CollectReportRow(
+                    sourcePath: sourcePath,
+                    status: "skipped",
+                    destinationPath: "",
+                    reason: "unsupported media extension ignored"
+                ))
+                continue
+            }
+
             let fileElement = nearestFileAncestor(from: element)
             let basename = URL(fileURLWithPath: sourcePath).lastPathComponent
             let fileExtension = URL(fileURLWithPath: sourcePath).pathExtension.lowercased()
@@ -154,7 +164,7 @@ struct CollectMediaPremiereProjectParser {
         for candidate in candidates {
             switch normalizedPath(from: candidate.value) {
             case .filePath(let sourcePath):
-                guard isLikelyMediaPath(sourcePath) else { continue }
+                guard CollectMediaPathFilter.isSupportedMediaPath(sourcePath) else { continue }
 
                 let sourceURL = URL(fileURLWithPath: sourcePath)
                 let entry = CollectMediaEntry(
@@ -168,7 +178,7 @@ struct CollectMediaPremiereProjectParser {
                 } ?? entry
 
             case .unsupportedPath(let rawPath):
-                guard isLikelyMediaPath(rawPath) else { continue }
+                guard CollectMediaPathFilter.isSupportedMediaPath(rawPath) else { continue }
                 parserRows.append(CollectReportRow(
                     sourcePath: rawPath,
                     status: "skipped",
@@ -317,12 +327,6 @@ struct CollectMediaPremiereProjectParser {
             || value.hasPrefix("\\\\")
     }
 
-    private func isLikelyMediaPath(_ path: String) -> Bool {
-        let ext = URL(fileURLWithPath: path).pathExtension.lowercased()
-        guard !ext.isEmpty else { return false }
-        return mediaExtensions.contains(ext)
-    }
-
     private func merge(existing: CollectMediaEntry, incoming: CollectMediaEntry) -> CollectMediaEntry {
         CollectMediaEntry(
             id: existing.id,
@@ -338,16 +342,26 @@ struct CollectMediaPremiereProjectParser {
     private func localName(of node: XMLNode?) -> String {
         (node?.name?.split(separator: ":").last).map(String.init)?.lowercased() ?? ""
     }
+}
 
-    private var mediaExtensions: Set<String> {
-        [
-            "3gp", "aaf", "aac", "aif", "aiff", "ari", "arx", "asf", "avi",
-            "braw", "crm", "dng", "dpx", "exr", "flac", "gif", "heic", "heif",
-            "jpeg", "jpg", "m2t", "m2ts", "m4a", "m4v", "mkv", "mov", "mp3",
-            "mp4", "mpeg", "mpg", "mts", "mxf", "omf", "png", "psd", "r3d",
-            "tga", "tif", "tiff", "wav", "webm", "wma", "wmv"
-        ]
+enum CollectMediaPathFilter {
+    static func isSupportedMediaPath(_ path: String) -> Bool {
+        let canonicalPath = URL(fileURLWithPath: path).standardizedFileURL.path
+        let ext = URL(fileURLWithPath: canonicalPath).pathExtension.lowercased()
+        guard !ext.isEmpty else { return false }
+        return mediaExtensions.contains(ext)
     }
+
+    private static let mediaExtensions: Set<String> = {
+        [
+            "3gp", "aaf", "aac", "aif", "aiff", "ari", "arw", "arx",
+            "asf", "avi", "braw", "cr2", "crm", "dng", "dpx", "exr",
+            "flac", "gif", "heic", "heif", "jpeg", "jpg", "m2t", "m2ts",
+            "m4a", "m4v", "mkv", "mov", "mp3", "mp4", "mpeg", "mpg",
+            "mts", "mxf", "nef", "omf", "png", "psd", "r3d", "tga",
+            "tif", "tiff", "wav", "webm", "wma", "wmv"
+        ]
+    }()
 }
 
 private enum ParsedPremiereProjectPath {
