@@ -39,8 +39,30 @@ Run:
 The script builds with Xcode without exposing the key to Xcode build settings, injects the local telemetry key into the copied app bundle, re-signs the app, and writes:
 
 ```text
+dist/AssetFox-<version>-build<build>-self-contained/AssetFox.app
+dist/AssetFox-<version>-build<build>-self-contained.zip
 dist/AssetFox.app
 dist/AssetFox-macos.zip
 ```
 
-The built app is self-contained for telemetry configuration. FFmpeg/FFprobe are self-contained only when the binaries exist at `AssetFox/Vendor/FFmpeg/ffmpeg` and `AssetFox/Vendor/FFmpeg/ffprobe` before building.
+The built app is self-contained for telemetry configuration. The release script also requires executable FFmpeg/FFprobe tools before packaging. Put them at:
+
+```text
+AssetFox/Vendor/FFmpeg/ffmpeg
+AssetFox/Vendor/FFmpeg/ffprobe
+```
+
+or set `ASSETFOX_FFMPEG_SOURCE_DIR` to a local folder containing both tools.
+
+## Privacy boundary
+
+Telemetry is intentionally limited to anonymous usage and diagnostic events. It must not collect:
+
+- file names
+- file paths
+- media content
+- project names
+- raw FFmpeg output
+- user-entered text
+
+Users can disable anonymous analytics in the app's `About` section.
