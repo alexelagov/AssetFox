@@ -1,4 +1,5 @@
 import Foundation
+import zlib
 
 struct ParsedCollectMediaDocument {
     var entries: [CollectMediaEntry]
@@ -25,6 +26,16 @@ struct CollectMediaXMLParser {
                     status: "skipped",
                     destinationPath: "",
                     reason: "non-file or unsupported URL"
+                ))
+                continue
+            }
+
+            guard CollectMediaPathFilter.isSupportedMediaPath(sourcePath) else {
+                parserRows.append(CollectReportRow(
+                    sourcePath: sourcePath,
+                    status: "skipped",
+                    destinationPath: "",
+                    reason: "unsupported media extension ignored"
                 ))
                 continue
             }
@@ -138,6 +149,235 @@ struct CollectMediaXMLParser {
             expectedDurationSeconds: existing.expectedDurationSeconds ?? incoming.expectedDurationSeconds,
             expectedSizeBytes: existing.expectedSizeBytes ?? incoming.expectedSizeBytes
         )
+    }
+}
+
+struct CollectMediaPremiereProjectParser {
+    func parse(projectURL: URL) throws -> ParsedCollectMediaDocument {
+        let data = try projectXMLData(from: projectURL)
+        let document = try XMLDocument(data: data, options: [])
+        let candidates = candidatePathValues(in: document)
+
+        var entriesByPath: [String: CollectMediaEntry] = [:]
+        var parserRows: [CollectReportRow] = []
+
+        for candidate in candidates {
+            switch normalizedPath(from: candidate.value) {
+            case .filePath(let sourcePath):
+                guard CollectMediaPathFilter.isSupportedMediaPath(sourcePath) else { continue }
+
+                let sourceURL = URL(fileURLWithPath: sourcePath)
+                let entry = CollectMediaEntry(
+                    sourcePath: sourceURL.standardizedFileURL.path,
+                    basename: sourceURL.lastPathComponent,
+                    fileExtension: sourceURL.pathExtension.lowercased()
+                )
+
+                entriesByPath[entry.sourcePath] = entriesByPath[entry.sourcePath].map {
+                    merge(existing: $0, incoming: entry)
+                } ?? entry
+
+            case .unsupportedPath(let rawPath):
+                guard CollectMediaPathFilter.isSupportedMediaPath(rawPath) else { continue }
+                parserRows.append(CollectReportRow(
+                    sourcePath: rawPath,
+                    status: "skipped",
+                    destinationPath: "",
+                    reason: "Premiere project path is not a macOS file path"
+                ))
+
+            case .none:
+                continue
+            }
+        }
+
+        return ParsedCollectMediaDocument(
+            entries: Array(entriesByPath.values).sorted { $0.sourcePath < $1.sourcePath },
+            parserRows: parserRows
+        )
+    }
+
+    private func projectXMLData(from projectURL: URL) throws -> Data {
+        let data = try Data(contentsOf: projectURL)
+        guard data.starts(with: [0x1f, 0x8b]) else {
+            return data
+        }
+        return try gunzippedData(from: projectURL)
+    }
+
+    private func gunzippedData(from projectURL: URL) throws -> Data {
+        guard let file = gzopen(projectURL.path, "rb") else {
+            throw PremiereProjectParserError.unreadableCompressedProject
+        }
+        defer { gzclose(file) }
+
+        var output = Data()
+        var buffer = [UInt8](repeating: 0, count: 64 * 1024)
+
+        while true {
+            let bufferSize = UInt32(buffer.count)
+            let readCount = buffer.withUnsafeMutableBytes { bufferPointer in
+                gzread(file, bufferPointer.baseAddress, bufferSize)
+            }
+
+            if readCount > 0 {
+                output.append(contentsOf: buffer.prefix(Int(readCount)))
+            } else if readCount == 0 {
+                break
+            } else {
+                throw PremiereProjectParserError.unreadableCompressedProject
+            }
+        }
+
+        return output
+    }
+
+    private func candidatePathValues(in document: XMLDocument) -> [(value: String, context: String)] {
+        guard let root = document.rootElement() else { return [] }
+        var values: [(value: String, context: String)] = []
+
+        for node in [root] + root.descendants {
+            guard let element = node as? XMLElement else { continue }
+            let elementName = localName(of: element)
+
+            if isPathLikeName(elementName),
+               !hasElementChildren(element),
+               let value = element.stringValue?.trimmingCharacters(in: .whitespacesAndNewlines),
+               !value.isEmpty {
+                values.append((value, elementName))
+            }
+
+            for attribute in element.attributes ?? [] {
+                let attributeName = localName(of: attribute)
+                guard isPathLikeName(attributeName) else { continue }
+                if let value = attribute.stringValue?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty {
+                    values.append((value, attributeName))
+                }
+            }
+        }
+
+        return values
+    }
+
+    private func hasElementChildren(_ element: XMLElement) -> Bool {
+        element.children?.contains { $0 is XMLElement } == true
+    }
+
+    private func isPathLikeName(_ name: String) -> Bool {
+        name.contains("path")
+            || name.contains("url")
+            || name == "filename"
+            || name == "file"
+            || name.contains("mediafile")
+    }
+
+    private func normalizedPath(from rawValue: String) -> ParsedPremiereProjectPath {
+        let trimmed = rawValue
+            .replacingOccurrences(of: "\u{0}", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines.union(CharacterSet(charactersIn: "\"'")))
+
+        guard !trimmed.isEmpty, trimmed.count < 4096 else { return .none }
+
+        if let fileURLPath = pathFromFileURL(trimmed) {
+            return .filePath(fileURLPath)
+        }
+
+        let decoded = trimmed.removingPercentEncoding ?? trimmed
+        if let fileURLPath = pathFromFileURL(decoded) {
+            return .filePath(fileURLPath)
+        }
+
+        if decoded.hasPrefix("/") {
+            return .filePath(URL(fileURLWithPath: decoded).standardizedFileURL.path)
+        }
+
+        if decoded.hasPrefix("~/") {
+            let expanded = NSString(string: decoded).expandingTildeInPath
+            return .filePath(URL(fileURLWithPath: expanded).standardizedFileURL.path)
+        }
+
+        if decoded.hasPrefix("Volumes/") || decoded.hasPrefix("Users/") {
+            return .filePath(URL(fileURLWithPath: "/" + decoded).standardizedFileURL.path)
+        }
+
+        if isWindowsPath(decoded) {
+            return .unsupportedPath(decoded)
+        }
+
+        return .none
+    }
+
+    private func pathFromFileURL(_ rawURL: String) -> String? {
+        guard let components = URLComponents(string: rawURL), components.scheme?.lowercased() == "file" else {
+            return nil
+        }
+
+        let host = (components.host ?? "").lowercased()
+        var path = components.percentEncodedPath.removingPercentEncoding ?? components.path
+        if !host.isEmpty, host != "localhost" {
+            path = "/\(components.host ?? "")\(path)"
+        }
+
+        guard !path.isEmpty else { return nil }
+        return URL(fileURLWithPath: path).standardizedFileURL.path
+    }
+
+    private func isWindowsPath(_ value: String) -> Bool {
+        value.range(of: #"^[A-Za-z]:\\"#, options: .regularExpression) != nil
+            || value.hasPrefix("\\\\")
+    }
+
+    private func merge(existing: CollectMediaEntry, incoming: CollectMediaEntry) -> CollectMediaEntry {
+        CollectMediaEntry(
+            id: existing.id,
+            sourcePath: existing.sourcePath,
+            basename: existing.basename,
+            fileExtension: existing.fileExtension,
+            expectedTimecodeStart: existing.expectedTimecodeStart ?? incoming.expectedTimecodeStart,
+            expectedDurationSeconds: existing.expectedDurationSeconds ?? incoming.expectedDurationSeconds,
+            expectedSizeBytes: existing.expectedSizeBytes ?? incoming.expectedSizeBytes
+        )
+    }
+
+    private func localName(of node: XMLNode?) -> String {
+        (node?.name?.split(separator: ":").last).map(String.init)?.lowercased() ?? ""
+    }
+}
+
+enum CollectMediaPathFilter {
+    static func isSupportedMediaPath(_ path: String) -> Bool {
+        let canonicalPath = URL(fileURLWithPath: path).standardizedFileURL.path
+        let ext = URL(fileURLWithPath: canonicalPath).pathExtension.lowercased()
+        guard !ext.isEmpty else { return false }
+        return mediaExtensions.contains(ext)
+    }
+
+    private static let mediaExtensions: Set<String> = {
+        [
+            "3gp", "aaf", "aac", "aif", "aiff", "ari", "arw", "arx",
+            "asf", "avi", "braw", "cr2", "crm", "dng", "dpx", "exr",
+            "flac", "gif", "heic", "heif", "jpeg", "jpg", "m2t", "m2ts",
+            "m4a", "m4v", "mkv", "mov", "mp3", "mp4", "mpeg", "mpg",
+            "mts", "mxf", "nef", "omf", "png", "psd", "r3d", "tga",
+            "tif", "tiff", "wav", "webm", "wma", "wmv"
+        ]
+    }()
+}
+
+private enum ParsedPremiereProjectPath {
+    case filePath(String)
+    case unsupportedPath(String)
+    case none
+}
+
+private enum PremiereProjectParserError: LocalizedError {
+    case unreadableCompressedProject
+
+    var errorDescription: String? {
+        switch self {
+        case .unreadableCompressedProject:
+            return "The Premiere project is compressed, but AssetFox could not read its XML payload."
+        }
     }
 }
 

@@ -15,9 +15,13 @@
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
-    <string>0.3.0</string>
+    <string>0.4.3</string>
     <key>CFBundleVersion</key>
-    <string>6</string>
+    <string>12</string>
+    <key>AssetFoxTelemetryEndpointURL</key>
+    <string>https://kchgrhjfcltgsvmsgiks.supabase.co/functions/v1/assetfox-telemetry</string>
+    <key>AssetFoxTelemetryAPIKey</key>
+    <string>$(ASSETFOX_TELEMETRY_API_KEY)</string>
     <key>LSMinimumSystemVersion</key>
     <string>15.0</string>
     <key>NSHumanReadableCopyright</key>

@@ -103,6 +103,8 @@ final class IngestViewModel {
     }
 
     func selectSource() {
+        guard !canCancel else { return }
+
         let panel = configuredSourcePanel(title: "Select ingest sources", initialURL: sourceURL)
 
         if panel.runModal() == .OK {
@@ -114,6 +116,8 @@ final class IngestViewModel {
     }
 
     func selectDestination() {
+        guard !canCancel else { return }
+
         let panel = configuredFolderPanel(title: "Select ingest destination", initialURL: destinationURL)
 
         if panel.runModal() == .OK {
@@ -124,6 +128,8 @@ final class IngestViewModel {
     }
 
     func selectReportDestination() {
+        guard !canCancel else { return }
+
         let panel = configuredFolderPanel(title: "Select report output folder", initialURL: reportDestinationURL ?? destinationURL)
 
         if panel.runModal() == .OK {
@@ -133,6 +139,8 @@ final class IngestViewModel {
     }
 
     func clearReportDestination() {
+        guard !canCancel else { return }
+
         setReportDestinationURL(nil)
         refreshPreflight()
     }
@@ -203,6 +211,10 @@ final class IngestViewModel {
 
     func formattedTotalSize() -> String {
         ByteCountFormatter.string(fromByteCount: scanResult.totalBytes, countStyle: .file)
+    }
+
+    func formattedSourceIngestSize() -> String {
+        ByteCountFormatter.string(fromByteCount: sourceIngestSizeBytes(), countStyle: .file)
     }
 
     func formattedDestinationFreeSpace() -> String {
@@ -381,6 +393,12 @@ final class IngestViewModel {
             warnings: runWarnings,
             errors: []
         )
+        Task {
+            await TelemetryService.shared.track(.ingestStarted, properties: [
+                "file_count": .int(scanResult.fileCount),
+                "verification_enabled": .bool(verificationEnabled)
+            ])
+        }
 
         let metadata = IngestJobMetadata(jobName: jobName, reelName: reelName, priority: priority)
         let settings = IngestJobSettings(
@@ -450,6 +468,11 @@ final class IngestViewModel {
                     destinationURL: destinationURL,
                     reportWriter: reportWriter
                 )
+                await TelemetryService.shared.track(.ingestCompleted, properties: [
+                    "file_count": .int(result.totalFiles),
+                    "verification_enabled": .bool(verificationEnabled),
+                    "failed_count": .int(result.mismatchCount + result.verificationFailureCount + result.errors.count)
+                ])
                 self.copyTask = nil
             } catch is CancellationError {
                 self.elapsedTime = self.ingestStartedAt.map { Date().timeIntervalSince($0) } ?? 0
@@ -487,6 +510,11 @@ final class IngestViewModel {
     func revealReport() {
         guard let targetURL = reportFiles?.directoryURL ?? reportFiles?.textURL ?? reportFiles?.jsonURL else { return }
         NSWorkspace.shared.activateFileViewerSelecting([targetURL])
+    }
+
+    func revealDestination() {
+        guard let destinationURL else { return }
+        NSWorkspace.shared.activateFileViewerSelecting([destinationURL])
     }
 
     private func startSourceScan() {
@@ -698,7 +726,7 @@ final class IngestViewModel {
             skippedFiles: skippedFilesCount,
             failedFiles: failedFilesCount,
             mismatches: mismatchesCount,
-            sourceSizeBytes: scanResult.totalBytes,
+            sourceSizeBytes: sourceIngestSizeBytes(),
             destinationSizeBytes: destinationIngestSizeBytes(),
             elapsedTime: elapsedTime,
             startedAt: ingestStartedAt,
@@ -706,11 +734,33 @@ final class IngestViewModel {
         )
     }
 
+    private func sourceIngestSizeBytes() -> Int64 {
+        if let copyResult {
+            return copyResult.totalBytes
+        }
+
+        let records = currentRunRecords.filter { countsTowardSourceSummary($0.state) }
+        if !records.isEmpty {
+            return records.reduce(Int64.zero) { total, record in
+                total + record.fileSize
+            }
+        }
+
+        return scanResult.totalBytes
+    }
+
     private func destinationIngestSizeBytes() -> Int64 {
         let records = copyResult?.verificationRecords ?? currentRunRecords
         return records.reduce(Int64.zero) { total, record in
             guard countsTowardDestinationSummary(record.state) else { return total }
             return total + (record.destinationFileSize ?? 0)
+        }
+    }
+
+    private func countsTowardSourceSummary(_ state: IngestFileVerificationState) -> Bool {
+        switch state {
+        case .verified, .copiedWithoutVerification, .mismatch, .skippedExisting, .failed:
+            return true
         }
     }
 

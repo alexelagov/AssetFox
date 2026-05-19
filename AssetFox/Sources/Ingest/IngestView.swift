@@ -9,12 +9,16 @@ struct IngestView: View {
     @State private var preserveFolderStructure = true
     @State private var createReport = true
 
-    private let primaryColumnWidth: CGFloat = 720
-    private let sidebarWidth: CGFloat = 360
-    private let workspaceSpacing: CGFloat = 24
+    private let primaryColumnWidth = AssetFoxDesign.primaryColumnWidth
+    private let sidebarWidth = AssetFoxDesign.sidebarWidth
+    private let workspaceSpacing = AssetFoxDesign.workspaceSpacing
 
     private var workspaceWidth: CGFloat {
         primaryColumnWidth + sidebarWidth + workspaceSpacing
+    }
+
+    private var runControlsLocked: Bool {
+        viewModel.canCancel
     }
 
     var body: some View {
@@ -24,8 +28,8 @@ struct IngestView: View {
                 workspaceSection
             }
             .frame(maxWidth: workspaceWidth, alignment: .leading)
-            .padding(.horizontal, 32)
-            .padding(.vertical, 28)
+            .padding(.horizontal, AssetFoxDesign.pageHorizontalPadding)
+            .padding(.vertical, AssetFoxDesign.pageVerticalPadding)
             .frame(maxWidth: .infinity, alignment: .center)
         }
         .background(Color(nsColor: .windowBackgroundColor))
@@ -40,15 +44,11 @@ struct IngestView: View {
     }
 
     private var headerBlock: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            Label("Ingest", systemImage: "square.and.arrow.down.on.square")
-                .font(.system(size: 28, weight: .semibold))
-
-            Text("Prepare a future ingest workflow for source pickup, destination routing, metadata, copy behavior, and run tracking.")
-                .font(.title3)
-                .foregroundStyle(.secondary)
-                .frame(maxWidth: 760, alignment: .leading)
-
+        AssetFoxPageHeader(
+            title: "Ingest",
+            systemImage: "square.and.arrow.down.on.square",
+            subtitle: "Prepare a future ingest workflow for source pickup, destination routing, metadata, copy behavior, and run tracking."
+        ) {
             HStack(spacing: 10) {
                 badge(preserveFolderStructure ? "Folder Structure Preserved" : "Flat Copy Mode", tone: .accent)
                 badge(viewModel.preflightStatusTitle, tone: statusBadgeTone)
@@ -105,6 +105,7 @@ struct IngestView: View {
                     viewModel.selectSource()
                 }
                 .buttonStyle(.borderedProminent)
+                .disabled(runControlsLocked)
                 .help("Choose one or more source files, folders, or volumes to scan and ingest.")
 
                 Button("Rescan") {
@@ -163,11 +164,21 @@ struct IngestView: View {
                     .multilineTextAlignment(.trailing)
             }
 
-            Button("Choose Destination") {
-                viewModel.selectDestination()
+            HStack(spacing: 10) {
+                Button("Choose Destination") {
+                    viewModel.selectDestination()
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(runControlsLocked)
+                .help("Choose the destination folder where ingested media should be copied.")
+
+                Button("Reveal in Finder") {
+                    viewModel.revealDestination()
+                }
+                .buttonStyle(.bordered)
+                .disabled(viewModel.destinationURL == nil)
+                .help("Reveal the ingest destination folder in Finder.")
             }
-            .buttonStyle(.borderedProminent)
-            .help("Choose the destination folder where ingested media should be copied.")
 
             HStack {
                 statPill(title: "Free Space", value: viewModel.formattedDestinationFreeSpace())
@@ -216,6 +227,7 @@ struct IngestView: View {
                     Text(mode.rawValue).tag(mode)
                 }
             }
+            .disabled(runControlsLocked)
             .help("If a destination file already exists, AssetFox compares SHA-256 first. Matching files are skipped. Different files are only replaced when Overwrite Existing is selected.")
 
             Text(copySettingsHelpText)
@@ -389,19 +401,13 @@ struct IngestView: View {
             }
 
             VStack(alignment: .leading, spacing: 10) {
-                Button("Choose Report Folder") {
-                    viewModel.selectReportDestination()
-                }
-                .buttonStyle(.borderedProminent)
-                .help("Choose a custom folder for CSV, TXT, and JSON ingest reports.")
-
                 HStack(spacing: 10) {
-                    Button("Use Default") {
-                        viewModel.clearReportDestination()
+                    Button("Choose Report Folder") {
+                        viewModel.selectReportDestination()
                     }
-                    .buttonStyle(.bordered)
-                    .disabled(viewModel.reportDestinationURL == nil)
-                    .help("Reset report output back to the default reports folder inside the destination.")
+                    .buttonStyle(.borderedProminent)
+                    .disabled(runControlsLocked)
+                    .help("Choose a custom folder for CSV, TXT, and JSON ingest reports.")
 
                     Button("Reveal in Finder") {
                         viewModel.revealReport()
@@ -434,11 +440,10 @@ struct IngestView: View {
 
             content()
         }
-        .padding(22)
+        .padding(AssetFoxDesign.panelPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
-            RoundedRectangle(cornerRadius: 22)
-                .fill(Color.accentColor.opacity(0.05))
+            AssetFoxPanelBackground()
         )
     }
 
@@ -463,7 +468,7 @@ struct IngestView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(14)
         .background(
-            RoundedRectangle(cornerRadius: 16)
+            RoundedRectangle(cornerRadius: AssetFoxDesign.innerRadius, style: .continuous)
                 .fill(Color(nsColor: .controlBackgroundColor))
         )
     }
@@ -561,7 +566,7 @@ struct IngestView: View {
     }
 
     private var startButtonTint: Color {
-        viewModel.canStartIngest ? .green : .accentColor
+        .green
     }
 
     private var progressDetailColor: Color {
@@ -598,8 +603,8 @@ struct IngestView: View {
             }
 
             HStack {
-                statPill(title: "Source Size", value: viewModel.formattedTotalSize())
-                statPill(title: "Destination Size", value: viewModel.formattedDestinationIngestSize())
+                statPill(title: "Source File Size", value: viewModel.formattedSourceIngestSize())
+                statPill(title: "Destination File Size", value: viewModel.formattedDestinationIngestSize())
             }
         }
     }

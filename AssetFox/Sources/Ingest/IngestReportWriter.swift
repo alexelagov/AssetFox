@@ -292,8 +292,8 @@ struct IngestReportWriter {
             "Skipped Files: \(summary.skippedFiles)",
             "Failed Files: \(summary.failedFiles)",
             "Mismatches: \(summary.mismatches)",
-            "Source Size on Disk: \(formattedGigabytes(summary.sourceSizeBytes)) GB",
-            "Destination Size on Disk: \(formattedGigabytes(summary.destinationSizeBytes)) GB",
+            "Source File Size: \(formattedGigabytes(summary.sourceSizeBytes)) GB",
+            "Destination File Size: \(formattedGigabytes(summary.destinationSizeBytes)) GB",
             "",
             "Warnings:",
         ]

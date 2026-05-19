@@ -81,6 +81,8 @@ actor FileScanner {
         let fm = FileManager.default
         return fullBuckets.values
             .filter { $0.count > 1 }
+            .flatMap { exactDuplicateBuckets(from: $0) }
+            .filter { $0.count > 1 }
             .map { urls -> DuplicateGroup in
                 let scanned = urls.compactMap { url -> ScannedFile? in
                     guard let attrs = try? fm.attributesOfItem(atPath: url.path),
@@ -127,6 +129,52 @@ actor FileScanner {
         }
         let digest = hasher.finalize()
         return digest.map { String(format: "%02x", $0) }.joined()
+    }
+
+    private func exactDuplicateBuckets(from urls: [URL]) -> [[URL]] {
+        var buckets: [[URL]] = []
+
+        for url in urls {
+            if let index = buckets.firstIndex(where: { bucket in
+                guard let representative = bucket.first else { return false }
+                return filesAreExactlyEqual(representative, url)
+            }) {
+                buckets[index].append(url)
+            } else {
+                buckets.append([url])
+            }
+        }
+
+        return buckets
+    }
+
+    private func filesAreExactlyEqual(_ lhs: URL, _ rhs: URL) -> Bool {
+        guard lhs != rhs,
+              let lhsHandle = FileHandle(forReadingAtPath: lhs.path),
+              let rhsHandle = FileHandle(forReadingAtPath: rhs.path)
+        else { return false }
+        defer {
+            try? lhsHandle.close()
+            try? rhsHandle.close()
+        }
+
+        let lhsSize = (try? lhs.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? -1
+        let rhsSize = (try? rhs.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? -2
+        guard lhsSize == rhsSize else { return false }
+
+        while true {
+            guard let lhsChunk = try? lhsHandle.read(upToCount: chunkSize),
+                  let rhsChunk = try? rhsHandle.read(upToCount: chunkSize)
+            else { return false }
+
+            if lhsChunk != rhsChunk {
+                return false
+            }
+
+            if lhsChunk.isEmpty {
+                return rhsChunk.isEmpty
+            }
+        }
     }
 
     // MARK: - Quarantine

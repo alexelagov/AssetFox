@@ -5,9 +5,9 @@ struct CollectMediaView: View {
     @State private var showAdvancedOptions = false
     @State private var showFullLog = false
 
-    private let primaryColumnWidth: CGFloat = 720
-    private let sidebarWidth: CGFloat = 360
-    private let workspaceSpacing: CGFloat = 24
+    private let primaryColumnWidth = AssetFoxDesign.primaryColumnWidth
+    private let sidebarWidth = AssetFoxDesign.sidebarWidth
+    private let workspaceSpacing = AssetFoxDesign.workspaceSpacing
 
     private var workspaceWidth: CGFloat {
         primaryColumnWidth + sidebarWidth + workspaceSpacing
@@ -20,8 +20,8 @@ struct CollectMediaView: View {
                 workspaceSection
             }
             .frame(maxWidth: workspaceWidth, alignment: .leading)
-            .padding(.horizontal, 32)
-            .padding(.vertical, 28)
+            .padding(.horizontal, AssetFoxDesign.pageHorizontalPadding)
+            .padding(.vertical, AssetFoxDesign.pageVerticalPadding)
             .frame(maxWidth: .infinity, alignment: .center)
         }
         .background(Color(nsColor: .windowBackgroundColor))
@@ -64,15 +64,11 @@ struct CollectMediaView: View {
     }
 
     private var headerBlock: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            Label("Collect Media", systemImage: "shippingbox")
-                .font(.system(size: 28, weight: .semibold))
-
-            Text("Collect the media referenced by a Premiere FCP XML into one clean destination, with optional relink assistance and audit reports.")
-                .font(.title3)
-                .foregroundStyle(.secondary)
-                .frame(maxWidth: 700, alignment: .leading)
-
+        AssetFoxPageHeader(
+            title: "Collect Media",
+            systemImage: "shippingbox",
+            subtitle: "Collect media referenced by a Premiere FCP XML or Premiere project into one clean destination, with optional relink assistance and audit reports."
+        ) {
             HStack(spacing: 10) {
                 statusBadge
                 capabilityBadge(
@@ -90,6 +86,7 @@ struct CollectMediaView: View {
             ViewThatFits(in: .horizontal) {
                 HStack(spacing: 24) {
                     quickFact(title: "XML", value: selectionState(for: viewModel.xmlURL))
+                    quickFact(title: "Project", value: selectionState(for: viewModel.premiereProjectURL))
                     quickFact(title: "Destination", value: selectionState(for: viewModel.destinationURL))
                     quickFact(title: "Relink", value: viewModel.options.smartRelink ? "Enabled" : "Off")
                     quickFact(title: "Preserve", value: viewModel.options.preserveStructure ? viewModel.options.preserveMode.displayName : "Flat Copy")
@@ -97,6 +94,7 @@ struct CollectMediaView: View {
 
                 VStack(alignment: .leading, spacing: 10) {
                     quickFact(title: "XML", value: selectionState(for: viewModel.xmlURL))
+                    quickFact(title: "Project", value: selectionState(for: viewModel.premiereProjectURL))
                     quickFact(title: "Destination", value: selectionState(for: viewModel.destinationURL))
                     quickFact(title: "Relink", value: viewModel.options.smartRelink ? "Enabled" : "Off")
                     quickFact(title: "Preserve", value: viewModel.options.preserveStructure ? viewModel.options.preserveMode.displayName : "Flat Copy")
@@ -110,21 +108,21 @@ struct CollectMediaView: View {
             HStack(alignment: .top, spacing: workspaceSpacing) {
                 VStack(alignment: .leading, spacing: 24) {
                     sourceSection(viewModel: viewModel)
-                    logSection(viewModel: viewModel)
+                    optionsSection(viewModel: viewModel)
                 }
                 .frame(width: primaryColumnWidth, alignment: .topLeading)
 
                 VStack(alignment: .leading, spacing: 24) {
                     runConsoleSection(viewModel: viewModel)
-                    optionsSection(viewModel: viewModel)
+                    logSection(viewModel: viewModel)
                 }
                 .frame(width: sidebarWidth, alignment: .topLeading)
             }
 
             VStack(alignment: .leading, spacing: 24) {
                 sourceSection(viewModel: viewModel)
-                runConsoleSection(viewModel: viewModel)
                 optionsSection(viewModel: viewModel)
+                runConsoleSection(viewModel: viewModel)
                 logSection(viewModel: viewModel)
             }
         }
@@ -135,11 +133,11 @@ struct CollectMediaView: View {
             sectionHeader(
                 eyebrow: "Setup",
                 title: "Sources and destination",
-                body: "Point the run at an XML, destination folder, and optional relink root."
+                body: "Point the run at an XML or Premiere project, destination folder, and optional relink root."
             )
 
             sourceRow(
-                title: "Premiere FCP XML",
+                title: "XML",
                 value: compactPath(viewModel.xmlURL),
                 buttonTitle: "Select XML",
                 action: { viewModel.selectXML() }
@@ -164,13 +162,13 @@ struct CollectMediaView: View {
             Divider()
 
             sourceRow(
-                title: "EDL Placeholder",
-                value: compactPath(viewModel.edlURL) ?? "Not selected",
-                buttonTitle: "Select EDL",
-                action: { viewModel.selectEDL() }
+                title: "Premiere Project",
+                value: compactPath(viewModel.premiereProjectURL) ?? "Optional",
+                buttonTitle: "Select Project",
+                action: { viewModel.selectPremiereProject() }
             )
         }
-        .padding(22)
+        .padding(AssetFoxDesign.panelPadding)
         .background(workspacePanel)
     }
 
@@ -219,7 +217,7 @@ struct CollectMediaView: View {
                     .font(.subheadline.weight(.semibold))
             }
         }
-        .padding(22)
+        .padding(AssetFoxDesign.panelPadding)
         .background(workspacePanel)
     }
 
@@ -271,7 +269,8 @@ struct CollectMediaView: View {
                     Divider()
 
                     VStack(alignment: .leading, spacing: 12) {
-                        summaryLine(title: "XML Source", value: compactPath(viewModel.xmlURL) ?? "Not selected")
+                        summaryLine(title: "XML", value: compactPath(viewModel.xmlURL) ?? "Not selected")
+                        summaryLine(title: "Premiere Project", value: compactPath(viewModel.premiereProjectURL) ?? "Not selected")
                         summaryLine(title: "Destination", value: compactPath(viewModel.destinationURL) ?? "Not selected")
                         summaryLine(title: "Search Root", value: compactPath(viewModel.options.searchRoot) ?? "Optional")
                     }
@@ -336,7 +335,7 @@ struct CollectMediaView: View {
                 }
             }
         }
-        .padding(22)
+        .padding(AssetFoxDesign.panelPadding)
         .background(workspacePanel)
     }
 
@@ -372,11 +371,11 @@ struct CollectMediaView: View {
             }
             .frame(minHeight: showFullLog ? 260 : 150)
             .background(
-                RoundedRectangle(cornerRadius: 14)
+                RoundedRectangle(cornerRadius: AssetFoxDesign.innerRadius, style: .continuous)
                     .fill(Color(nsColor: .controlBackgroundColor))
             )
         }
-        .padding(22)
+        .padding(AssetFoxDesign.panelPadding)
         .background(workspacePanel)
     }
 
@@ -464,7 +463,7 @@ struct CollectMediaView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(14)
         .background(
-            RoundedRectangle(cornerRadius: 14)
+            RoundedRectangle(cornerRadius: AssetFoxDesign.innerRadius, style: .continuous)
                 .fill(Color(nsColor: .controlBackgroundColor))
         )
     }
@@ -474,7 +473,7 @@ struct CollectMediaView: View {
             .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
-                RoundedRectangle(cornerRadius: 16)
+                RoundedRectangle(cornerRadius: AssetFoxDesign.innerRadius, style: .continuous)
                     .fill(Color(nsColor: .controlBackgroundColor))
             )
     }
@@ -523,14 +522,13 @@ struct CollectMediaView: View {
             return "The current run is active. Progress and logs update live."
         }
         if viewModel.canCollect {
-            return "XML and destination are set. You can start the run now."
+            return "A source document and destination are set. You can start the run now."
         }
-        return "Select an XML file and a destination folder to enable collecting."
+        return "Select an XML file or Premiere project, plus a destination folder, to enable collecting."
     }
 
     private var workspacePanel: some View {
-        RoundedRectangle(cornerRadius: 22)
-            .fill(Color.accentColor.opacity(0.05))
+        AssetFoxPanelBackground()
     }
 }
 

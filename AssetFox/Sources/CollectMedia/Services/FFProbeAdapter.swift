@@ -60,22 +60,6 @@ struct FFProbeAdapter: Sendable {
     }
 
     static func locateExecutable() -> URL? {
-        if let path = ProcessInfo.processInfo.environment["PATH"] {
-            for folder in path.split(separator: ":") {
-                let candidate = URL(fileURLWithPath: String(folder)).appendingPathComponent("ffprobe")
-                if FileManager.default.isExecutableFile(atPath: candidate.path) {
-                    return candidate
-                }
-            }
-        }
-
-        let fallbackPaths = [
-            "/opt/homebrew/bin/ffprobe",
-            "/usr/local/bin/ffprobe"
-        ]
-        for path in fallbackPaths where FileManager.default.isExecutableFile(atPath: path) {
-            return URL(fileURLWithPath: path)
-        }
-        return nil
+        FFmpegRuntimeResolver.resolve(.ffprobe).executableURL
     }
 }

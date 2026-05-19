@@ -40,6 +40,13 @@
 		A031 /* MediaInfoLibService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F032 /* MediaInfoLibService.swift */; };
 		A032 /* MediaInfoLibBridge.mm in Sources */ = {isa = PBXBuildFile; fileRef = F034 /* MediaInfoLibBridge.mm */; };
 		A033 /* OpenSourceLicenses.txt in Resources */ = {isa = PBXBuildFile; fileRef = F036 /* OpenSourceLicenses.txt */; };
+		A034 /* FFmpegRuntimeResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = F037 /* FFmpegRuntimeResolver.swift */; };
+		A035 /* QualityCheckModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = F038 /* QualityCheckModels.swift */; };
+		A036 /* QualityCheckAnalyzer.swift in Sources */ = {isa = PBXBuildFile; fileRef = F039 /* QualityCheckAnalyzer.swift */; };
+		A037 /* QualityCheckViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F040 /* QualityCheckViewModel.swift */; };
+		A038 /* QualityCheckView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F041 /* QualityCheckView.swift */; };
+		A039 /* TelemetryService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F042 /* TelemetryService.swift */; };
+		A040 /* TelemetrySettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F043 /* TelemetrySettingsView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -79,6 +86,13 @@
 		F034 /* MediaInfoLibBridge.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = MediaInfoLibBridge.mm; sourceTree = "<group>"; };
 		F035 /* AssetFox-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "AssetFox-Bridging-Header.h"; sourceTree = "<group>"; };
 		F036 /* OpenSourceLicenses.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = OpenSourceLicenses.txt; sourceTree = "<group>"; };
+		F037 /* FFmpegRuntimeResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FFmpegRuntimeResolver.swift; sourceTree = "<group>"; };
+		F038 /* QualityCheckModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QualityCheckModels.swift; sourceTree = "<group>"; };
+		F039 /* QualityCheckAnalyzer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QualityCheckAnalyzer.swift; sourceTree = "<group>"; };
+		F040 /* QualityCheckViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QualityCheckViewModel.swift; sourceTree = "<group>"; };
+		F041 /* QualityCheckView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QualityCheckView.swift; sourceTree = "<group>"; };
+		F042 /* TelemetryService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TelemetryService.swift; sourceTree = "<group>"; };
+		F043 /* TelemetrySettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TelemetrySettingsView.swift; sourceTree = "<group>"; };
 		FAPP /* AssetFox.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AssetFox.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -115,6 +129,29 @@
 			shellPath = /bin/sh;
 			shellScript = "set -eu\nSOURCE_DIR=\"${PROJECT_DIR}/AssetFox/Vendor/MediaInfoLib\"\nSOURCE_DYLIB=\"${SOURCE_DIR}/libmediainfo.dylib\"\nSOURCE_DYLIB_VERSIONED=\"${SOURCE_DIR}/libmediainfo.0.dylib\"\nDEST_DIR=\"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}\"\nDEST_DYLIB=\"${DEST_DIR}/libmediainfo.dylib\"\nSIGN_IDENTITY=\"${EXPANDED_CODE_SIGN_IDENTITY:--}\"\nLEGACY_INSTALL_NAME=\"/usr/local/lib/libmediainfo.0.dylib\"\nBUNDLE_INSTALL_NAME=\"@rpath/libmediainfo.dylib\"\nMAIN_EXECUTABLE=\"${TARGET_BUILD_DIR}/${EXECUTABLE_PATH}\"\nDEBUG_DYLIB=\"${TARGET_BUILD_DIR}/${EXECUTABLE_FOLDER_PATH}/${PRODUCT_NAME}.debug.dylib\"\n\nif [ -f \"$SOURCE_DYLIB\" ]; then\n  INPUT_DYLIB=\"$SOURCE_DYLIB\"\nelif [ -f \"$SOURCE_DYLIB_VERSIONED\" ]; then\n  INPUT_DYLIB=\"$SOURCE_DYLIB_VERSIONED\"\nelse\n  echo \"warning: MediaInfoLib dylib not found in ${SOURCE_DIR}. Building without embedded deep metadata runtime.\"\n  exit 0\nfi\n\nmkdir -p \"$DEST_DIR\"\ncp -f \"$INPUT_DYLIB\" \"$DEST_DYLIB\"\nchmod 755 \"$DEST_DYLIB\"\n\n# Rewrite the embedded dylib identity to a bundle-local path so the runtime does not\n# depend on /usr/local or Homebrew installs on another Mac.\ninstall_name_tool -id \"$BUNDLE_INSTALL_NAME\" \"$DEST_DYLIB\"\n\n# Rewrite the app binaries to load the bundled runtime instead of the original /usr/local install name.\nif [ -f \"$MAIN_EXECUTABLE\" ]; then\n  install_name_tool -change \"$LEGACY_INSTALL_NAME\" \"$BUNDLE_INSTALL_NAME\" \"$MAIN_EXECUTABLE\" || true\nfi\nif [ -f \"$DEBUG_DYLIB\" ]; then\n  install_name_tool -change \"$LEGACY_INSTALL_NAME\" \"$BUNDLE_INSTALL_NAME\" \"$DEBUG_DYLIB\" || true\nfi\n\n# Sign the embedded dylib before the app bundle is signed.\ncodesign --force --sign \"$SIGN_IDENTITY\" --timestamp=none \"$DEST_DYLIB\"\n";
 		};
+		B005 /* Embed FFmpeg Tools */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"$(PROJECT_DIR)/AssetFox/Vendor/FFmpeg/ffmpeg",
+				"$(PROJECT_DIR)/AssetFox/Vendor/FFmpeg/ffprobe",
+			);
+			name = "Embed FFmpeg Tools";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/Tools/ffmpeg",
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/Tools/ffprobe",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "set -eu\nSOURCE_DIR=\"${PROJECT_DIR}/AssetFox/Vendor/FFmpeg\"\nDEST_DIR=\"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/Tools\"\nSIGN_IDENTITY=\"${EXPANDED_CODE_SIGN_IDENTITY:--}\"\n\nfor TOOL in ffmpeg ffprobe; do\n  SOURCE_TOOL=\"${SOURCE_DIR}/${TOOL}\"\n  DEST_TOOL=\"${DEST_DIR}/${TOOL}\"\n\n  if [ ! -f \"$SOURCE_TOOL\" ]; then\n    echo \"warning: ${TOOL} not found in ${SOURCE_DIR}. AssetFox will fall back to Homebrew or /usr/local at runtime.\"\n    continue\n  fi\n\n  mkdir -p \"$DEST_DIR\"\n  cp -f \"$SOURCE_TOOL\" \"$DEST_TOOL\"\n  chmod 755 \"$DEST_TOOL\"\n  codesign --force --sign \"$SIGN_IDENTITY\" --timestamp=none \"$DEST_TOOL\" || true\ndone\n";
+		};
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -126,9 +163,12 @@
 				GRP_MODELS /* Sources/Models */,
 				GRP_VIEWS /* Sources/Views */,
 				GRP_SERVICES /* Sources/Services */,
+				GRP_RUNTIME /* Sources/Runtime */,
+				GRP_TELEMETRY /* Sources/Telemetry */,
 				GRP_COLLECT_MEDIA /* Sources/CollectMedia */,
 				GRP_INGEST /* Sources/Ingest */,
 				GRP_MEDIA_INFO /* Sources/MediaInfo */,
+				GRP_QUALITY_CHECK /* Sources/QualityCheck */,
 				F010 /* Assets.xcassets */,
 				F011 /* Info.plist */,
 				F035 /* AssetFox-Bridging-Header.h */,
@@ -221,6 +261,49 @@
 			path = Sources/MediaInfo;
 			sourceTree = "<group>";
 		};
+		GRP_QUALITY_CHECK /* Sources/QualityCheck */ = {
+			isa = PBXGroup;
+			children = (
+				GRP_QUALITY_CHECK_MODELS /* Models */,
+				GRP_QUALITY_CHECK_SERVICES /* Services */,
+				GRP_QUALITY_CHECK_VIEWMODELS /* ViewModels */,
+				GRP_QUALITY_CHECK_VIEWS /* Views */,
+			);
+			path = Sources/QualityCheck;
+			sourceTree = "<group>";
+		};
+		GRP_QUALITY_CHECK_MODELS /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				F038 /* QualityCheckModels.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		GRP_QUALITY_CHECK_SERVICES /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				F039 /* QualityCheckAnalyzer.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		GRP_QUALITY_CHECK_VIEWMODELS /* ViewModels */ = {
+			isa = PBXGroup;
+			children = (
+				F040 /* QualityCheckViewModel.swift */,
+			);
+			path = ViewModels;
+			sourceTree = "<group>";
+		};
+		GRP_QUALITY_CHECK_VIEWS /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				F041 /* QualityCheckView.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
 		GRP_PROD /* Products */ = {
 			isa = PBXGroup;
 			children = (
@@ -235,6 +318,23 @@
 				F012 /* AssetFoxRootView.swift */,
 			);
 			path = Sources/Root;
+			sourceTree = "<group>";
+		};
+		GRP_RUNTIME /* Sources/Runtime */ = {
+			isa = PBXGroup;
+			children = (
+				F037 /* FFmpegRuntimeResolver.swift */,
+			);
+			path = Sources/Runtime;
+			sourceTree = "<group>";
+		};
+		GRP_TELEMETRY /* Sources/Telemetry */ = {
+			isa = PBXGroup;
+			children = (
+				F042 /* TelemetryService.swift */,
+				F043 /* TelemetrySettingsView.swift */,
+			);
+			path = Sources/Telemetry;
 			sourceTree = "<group>";
 		};
 		GRP_SERVICES /* Sources/Services */ = {
@@ -275,6 +375,7 @@
 				B001 /* Sources */,
 				B002 /* Resources */,
 				B004 /* Embed MediaInfoLib */,
+				B005 /* Embed FFmpeg Tools */,
 				B003 /* Frameworks */,
 			);
 			buildRules = (
@@ -340,6 +441,7 @@
 				A011 /* AssetFoxRootView.swift in Sources */,
 				A002 /* Models.swift in Sources */,
 				A003 /* AppViewModel.swift in Sources */,
+				A034 /* FFmpegRuntimeResolver.swift in Sources */,
 				A013 /* CollectMediaContracts.swift in Sources */,
 				A004 /* FileScanner.swift in Sources */,
 				A005 /* ContentView.swift in Sources */,
@@ -363,6 +465,12 @@
 				A030 /* MediaInfoModels.swift in Sources */,
 				A031 /* MediaInfoLibService.swift in Sources */,
 				A032 /* MediaInfoLibBridge.mm in Sources */,
+				A035 /* QualityCheckModels.swift in Sources */,
+				A036 /* QualityCheckAnalyzer.swift in Sources */,
+				A037 /* QualityCheckViewModel.swift in Sources */,
+				A038 /* QualityCheckView.swift in Sources */,
+				A039 /* TelemetryService.swift in Sources */,
+				A040 /* TelemetrySettingsView.swift in Sources */,
 				A006 /* DropZoneView.swift in Sources */,
 				A007 /* ScanProgressView.swift in Sources */,
 				A008 /* ResultsView.swift in Sources */,
@@ -497,10 +605,11 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETFOX_TELEMETRY_API_KEY = "";
 					CODE_SIGN_ENTITLEMENTS = AssetFox/AssetFox.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-					CURRENT_PROJECT_VERSION = 6;
+					CURRENT_PROJECT_VERSION = 12;
 				LIBRARY_SEARCH_PATHS = (
 					"$(inherited)",
 					"$(PROJECT_DIR)/AssetFox/Vendor/MediaInfoLib",
@@ -519,7 +628,7 @@
 					"$(inherited)",
 					"-lmediainfo",
 				);
-					MARKETING_VERSION = 0.3.0;
+					MARKETING_VERSION = 0.4.3;
 					PRODUCT_BUNDLE_IDENTIFIER = com.postprod.assetfox;
 					PRODUCT_NAME = AssetFox;
 				SDKROOT = macosx;
@@ -534,10 +643,11 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETFOX_TELEMETRY_API_KEY = "";
 					CODE_SIGN_ENTITLEMENTS = AssetFox/AssetFox.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-					CURRENT_PROJECT_VERSION = 6;
+					CURRENT_PROJECT_VERSION = 12;
 				LIBRARY_SEARCH_PATHS = (
 					"$(inherited)",
 					"$(PROJECT_DIR)/AssetFox/Vendor/MediaInfoLib",
@@ -556,7 +666,7 @@
 					"$(inherited)",
 					"-lmediainfo",
 				);
-					MARKETING_VERSION = 0.3.0;
+					MARKETING_VERSION = 0.4.3;
 					PRODUCT_BUNDLE_IDENTIFIER = com.postprod.assetfox;
 					PRODUCT_NAME = AssetFox;
 				SDKROOT = macosx;

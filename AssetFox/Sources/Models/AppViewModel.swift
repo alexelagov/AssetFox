@@ -33,6 +33,8 @@ final class AppViewModel {
 
         Task {
             do {
+                await TelemetryService.shared.track(.duplicateScanStarted)
+
                 let files = try await scanner.scanFiles(in: root) { [weak self] _, name in
                     Task { @MainActor in
                         guard self?.activeScanSession == sessionID else { return }
@@ -54,6 +56,10 @@ final class AppViewModel {
                 groups = found
                 phase = .done
                 if let first = groups.first { selectedGroupID = first.id }
+                await TelemetryService.shared.track(.duplicateScanCompleted, properties: [
+                    "groups_count": .int(found.count),
+                    "files_count": .int(files.count)
+                ])
 
             } catch {
                 guard activeScanSession == sessionID else { return }

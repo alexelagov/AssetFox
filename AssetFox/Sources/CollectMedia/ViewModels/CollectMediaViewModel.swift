@@ -1,12 +1,13 @@
 import AppKit
 import Observation
 import SwiftUI
+import UniformTypeIdentifiers
 
 @MainActor
 @Observable
 final class CollectMediaViewModel {
     var xmlURL: URL?
-    var edlURL: URL?
+    var premiereProjectURL: URL?
     var destinationURL: URL?
     var options = CollectOptions()
 
@@ -36,7 +37,7 @@ final class CollectMediaViewModel {
     }
 
     var canCollect: Bool {
-        !isCollecting && xmlURL != nil && destinationURL != nil
+        !isCollecting && (xmlURL != nil || premiereProjectURL != nil) && destinationURL != nil
     }
 
     func selectXML() {
@@ -52,16 +53,18 @@ final class CollectMediaViewModel {
         }
     }
 
-    func selectEDL() {
+    func selectPremiereProject() {
         let panel = NSOpenPanel()
-        panel.title = "Select EDL (optional placeholder)"
+        panel.title = "Select Premiere project"
         panel.canChooseFiles = true
         panel.canChooseDirectories = false
         panel.allowsMultipleSelection = false
-        panel.allowedFileTypes = ["edl"]
+        panel.allowedContentTypes = [
+            UTType(filenameExtension: "prproj") ?? .data
+        ]
         if panel.runModal() == .OK {
-            edlURL = panel.url
-            appendLog("EDL selected (placeholder): \(panel.url?.path ?? "")")
+            premiereProjectURL = panel.url
+            appendLog("Premiere project selected: \(panel.url?.path ?? "")")
         }
     }
 
@@ -95,8 +98,8 @@ final class CollectMediaViewModel {
     }
 
     func startCollect() {
-        guard let xmlURL, let destinationURL else {
-            errorMessage = "Please select an XML file and destination folder."
+        guard xmlURL != nil || premiereProjectURL != nil, let destinationURL else {
+            errorMessage = "Please select an XML file or Premiere project, plus a destination folder."
             return
         }
 
@@ -107,7 +110,7 @@ final class CollectMediaViewModel {
 
         let request = CollectRequest(
             xmlURL: xmlURL,
-            edlURL: edlURL,
+            premiereProjectURL: premiereProjectURL,
             destinationURL: destinationURL,
             options: options
         )
@@ -115,6 +118,9 @@ final class CollectMediaViewModel {
         let run = service.makeRun(request: request)
         activeRun = run
         appendLog("Starting collect in background...")
+        Task {
+            await TelemetryService.shared.track(.collectMediaStarted)
+        }
 
         progressTask?.cancel()
         progressTask = Task { [weak self] in
@@ -173,6 +179,12 @@ final class CollectMediaViewModel {
         resultTask = nil
         summary = result
         appendLog(result.status == .completed ? "Done." : "Stopped by user.")
+        Task {
+            await TelemetryService.shared.track(.collectMediaCompleted, properties: [
+                "copied_count": .int(result.counts.copied),
+                "missing_count": .int(result.counts.missing)
+            ])
+        }
     }
 
     private func fail(with error: Error) {
