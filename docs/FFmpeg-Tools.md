@@ -18,7 +18,7 @@ AssetFox.app/Contents/Resources/Tools/ffmpeg
 AssetFox.app/Contents/Resources/Tools/ffprobe
 ```
 
-If either file is missing, the build prints a warning and continues. Runtime lookup then falls back to:
+If either file is missing during a normal Xcode build, the build prints a warning and continues. Runtime lookup then falls back to:
 
 ```text
 /opt/homebrew/bin/ffmpeg
@@ -26,6 +26,14 @@ If either file is missing, the build prints a warning and continues. Runtime loo
 /usr/local/bin/ffmpeg
 /usr/local/bin/ffprobe
 ```
+
+For internal self-contained release builds, `script/build_release.sh` is stricter: it requires executable `ffmpeg` and `ffprobe` files before packaging. You can either use the vendor folder above or set:
+
+```bash
+ASSETFOX_FFMPEG_SOURCE_DIR=/path/to/ffmpeg-tools ./script/build_release.sh
+```
+
+The release script copies the tools into `AssetFox.app/Contents/Resources/Tools`, re-signs the app, and writes versioned artifacts under `dist/`.
 
 ## Licensing requirement
 
