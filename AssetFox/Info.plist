@@ -19,7 +19,7 @@
     <key>CFBundleVersion</key>
     <string>12</string>
     <key>AssetFoxTelemetryEndpointURL</key>
-    <string>https://kchgrhjfcltgsvmsgiks.supabase.co/functions/v1/assetfox-telemetry</string>
+    <string>$(ASSETFOX_TELEMETRY_ENDPOINT_URL)</string>
     <key>AssetFoxTelemetryAPIKey</key>
     <string>$(ASSETFOX_TELEMETRY_API_KEY)</string>
     <key>LSMinimumSystemVersion</key>

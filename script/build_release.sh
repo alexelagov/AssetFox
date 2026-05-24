@@ -21,6 +21,7 @@ Create it from:
   Config/Telemetry.example.xcconfig
 
 Set:
+  ASSETFOX_TELEMETRY_ENDPOINT_URL = <your Supabase Edge Function HTTPS URL>
   ASSETFOX_TELEMETRY_API_KEY = <your Supabase Edge Function key>
 
 This file is ignored by git and is required for internal telemetry-enabled builds.
@@ -31,6 +32,22 @@ fi
 TELEMETRY_KEY="$(
   sed -n 's/^[[:space:]]*ASSETFOX_TELEMETRY_API_KEY[[:space:]]*=[[:space:]]*//p' "$LOCAL_TELEMETRY_CONFIG" | tail -n 1
 )"
+TELEMETRY_ENDPOINT="$(
+  sed -n 's/^[[:space:]]*ASSETFOX_TELEMETRY_ENDPOINT_URL[[:space:]]*=[[:space:]]*//p' "$LOCAL_TELEMETRY_CONFIG" | tail -n 1
+)"
+
+if [ -z "$TELEMETRY_ENDPOINT" ] || [ "$TELEMETRY_ENDPOINT" = "https://YOUR_PROJECT.supabase.co/functions/v1/assetfox-telemetry" ]; then
+  echo "Config/Telemetry.local.xcconfig does not contain a valid ASSETFOX_TELEMETRY_ENDPOINT_URL value."
+  exit 1
+fi
+
+case "$TELEMETRY_ENDPOINT" in
+  https://*) ;;
+  *)
+    echo "ASSETFOX_TELEMETRY_ENDPOINT_URL must be an HTTPS URL."
+    exit 1
+    ;;
+esac
 
 if [ -z "$TELEMETRY_KEY" ] || [ "$TELEMETRY_KEY" = "YOUR_SUPABASE_EDGE_FUNCTION_KEY_HERE" ]; then
   echo "Config/Telemetry.local.xcconfig does not contain a valid ASSETFOX_TELEMETRY_API_KEY value."
@@ -59,6 +76,7 @@ rm -rf "$RELEASE_DIR" "$ZIP_DEST" "$LATEST_APP_DEST" "$LATEST_ZIP_DEST"
 mkdir -p "$RELEASE_DIR"
 ditto "$APP_SOURCE" "$APP_DEST"
 
+/usr/libexec/PlistBuddy -c "Set :AssetFoxTelemetryEndpointURL $TELEMETRY_ENDPOINT" "$APP_DEST/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Set :AssetFoxTelemetryAPIKey $TELEMETRY_KEY" "$APP_DEST/Contents/Info.plist"
 
 if [ -x "$FFMPEG_SOURCE_DIR/ffmpeg" ] && [ -x "$FFMPEG_SOURCE_DIR/ffprobe" ]; then

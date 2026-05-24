@@ -7,6 +7,10 @@ Platform: `macOS 15+`
 
 AssetFox is a native macOS post-production toolkit for checking, collecting, ingesting, and inspecting media files. It is built as a single desktop app with a sidebar workflow for post-production operators.
 
+## Repository Status
+
+This repository is prepared for public visibility with telemetry secrets and release artifacts kept out of the tracked source tree. Before changing GitHub visibility, run the [Public Repository Checklist](docs/PUBLIC_RELEASE_CHECKLIST.md).
+
 ## Main Features
 
 - `Quality Check`: compare multiple video exports with synchronized playback, frame stepping, reference-based cut checks, black/freeze detection, timeline findings, raw FFmpeg diagnostics, and TXT export of QC results.
@@ -86,6 +90,7 @@ See [docs/SMOKE_TEST.md](docs/SMOKE_TEST.md) for the full launch and feature che
 - [FFmpeg Tool Placement](docs/FFmpeg-Tools.md)
 - [MediaInfoLib Embedding](docs/MediaInfoLib-Embedding.md)
 - [Telemetry Build Setup](docs/telemetry-build.md)
+- [Public Repository Checklist](docs/PUBLIC_RELEASE_CHECKLIST.md)
 
 ## Layout
 
