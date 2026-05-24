@@ -1,6 +1,8 @@
 # Telemetry Build Setup
 
-AssetFox telemetry uses a first-party Supabase Edge Function endpoint and a shared internal key. Do not commit the real key.
+AssetFox telemetry uses a first-party Supabase Edge Function endpoint and a shared internal key. Do not commit the real endpoint or key.
+
+The tracked app configuration intentionally leaves telemetry unconfigured for public/default builds. Internal release builds inject telemetry settings from `Config/Telemetry.local.xcconfig` after the app bundle is copied into `dist/`.
 
 ## Local build key
 
@@ -14,6 +16,7 @@ Edit `Config/Telemetry.local.xcconfig`:
 
 ```xcconfig
 ASSETFOX_TELEMETRY_API_KEY = <your Supabase Edge Function key>
+ASSETFOX_TELEMETRY_ENDPOINT_URL = <your Supabase Edge Function HTTPS URL>
 ```
 
 `Config/Telemetry.local.xcconfig` is ignored by git.
@@ -27,6 +30,8 @@ ASSETFOX_TELEMETRY_KEY = <your Supabase Edge Function key>
 ```
 
 Set it in the Supabase dashboard under the project's Edge Function secrets.
+
+Do not use a Supabase service-role key or unrestricted backend secret in a desktop app bundle. Treat any value shipped inside `AssetFox.app` as recoverable by users and enforce authorization, validation, and rate limits in the Edge Function.
 
 ## Release build
 
@@ -66,3 +71,7 @@ Telemetry is intentionally limited to anonymous usage and diagnostic events. It 
 - user-entered text
 
 Users can disable anonymous analytics in the app's `About` section.
+
+## Public repository boundary
+
+Before making the repository public, run the [Public Repository Checklist](PUBLIC_RELEASE_CHECKLIST.md). Rotate any telemetry key that may have appeared in terminal logs, screenshots, or old commits.

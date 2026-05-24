@@ -1,5 +1,6 @@
 // Copy this file to Telemetry.local.xcconfig and set the value locally.
 // Telemetry.local.xcconfig is ignored by git because it contains the
-// first-party telemetry shared key used by internal builds.
+// first-party telemetry endpoint and shared key used by internal builds.
 
+ASSETFOX_TELEMETRY_ENDPOINT_URL = https://YOUR_PROJECT.supabase.co/functions/v1/assetfox-telemetry
 ASSETFOX_TELEMETRY_API_KEY = YOUR_SUPABASE_EDGE_FUNCTION_KEY_HERE
