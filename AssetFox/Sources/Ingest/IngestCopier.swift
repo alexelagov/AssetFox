@@ -366,10 +366,39 @@ struct IngestCopier {
                 ))
 
                 do {
-                    try fileManager.copyItem(at: job.sourceURL, to: job.destinationURL)
+                    let copiedBytesBeforeFile = copiedBytes
+                    let copiedFilesAtFileStart = copiedFiles
+                    let verifiedFilesAtFileStart = verifiedFiles
+                    let mismatchCountAtFileStart = mismatchCount
+                    let verificationFailureCountAtFileStart = verificationFailureCount
+                    let warningsAtFileStart = warnings
+                    let errorsAtFileStart = errors
+                    let currentFilePath = job.relativePath
+                    try await copyFile(
+                        from: job.sourceURL,
+                        to: job.destinationURL,
+                        expectedSize: job.size
+                    ) { fileBytesCopied in
+                        await progress(buildProgress(
+                            copiedFiles: copiedFilesAtFileStart,
+                            totalFiles: totalFiles,
+                            copiedBytes: copiedBytesBeforeFile + fileBytesCopied,
+                            totalBytes: totalBytes,
+                            verifiedFiles: verifiedFilesAtFileStart,
+                            mismatchCount: mismatchCountAtFileStart,
+                            verificationFailureCount: verificationFailureCountAtFileStart,
+                            currentFilePath: currentFilePath,
+                            phase: .copying,
+                            detail: "Copying file",
+                            latestRecord: nil,
+                            warnings: warningsAtFileStart,
+                            errors: errorsAtFileStart
+                        ))
+                    }
                     copiedFiles += 1
                     copiedBytes += job.size
                 } catch {
+                    try? fileManager.removeItem(at: job.destinationURL)
                     let message = "Copy failed for \(job.relativePath): \(error.localizedDescription)"
                     let record = IngestFileVerificationRecord(
                         relativePath: job.relativePath,
@@ -968,6 +997,76 @@ struct IngestCopier {
             warnings: warnings,
             errors: errors
         )
+    }
+
+    private func copyFile(
+        from sourceURL: URL,
+        to destinationURL: URL,
+        expectedSize: Int64,
+        progress: @escaping @Sendable (Int64) async -> Void
+    ) async throws {
+        let chunkSize = 8 * 1024 * 1024
+        let reportByteInterval: Int64 = 64 * 1024 * 1024
+        let reportTimeInterval: TimeInterval = 0.5
+
+        guard FileManager.default.createFile(atPath: destinationURL.path, contents: nil) else {
+            throw IngestFatalJobError.destinationUnavailable("Could not create destination file at \(destinationURL.path).")
+        }
+
+        let input = try FileHandle(forReadingFrom: sourceURL)
+        let output = try FileHandle(forWritingTo: destinationURL)
+        defer {
+            try? input.close()
+            try? output.close()
+        }
+
+        var copiedBytes: Int64 = 0
+        var bytesSinceReport: Int64 = 0
+        var lastReportAt = Date()
+
+        while true {
+            try Task.checkCancellation()
+
+            let chunk = try autoreleasepool {
+                try input.read(upToCount: chunkSize) ?? Data()
+            }
+
+            guard !chunk.isEmpty else { break }
+
+            try output.write(contentsOf: chunk)
+            let chunkBytes = Int64(chunk.count)
+            copiedBytes += chunkBytes
+            bytesSinceReport += chunkBytes
+
+            let shouldReportByBytes = bytesSinceReport >= reportByteInterval
+            let shouldReportByTime = Date().timeIntervalSince(lastReportAt) >= reportTimeInterval
+            let isComplete = expectedSize > 0 && copiedBytes >= expectedSize
+            if shouldReportByBytes || shouldReportByTime || isComplete {
+                await progress(copiedBytes)
+                bytesSinceReport = 0
+                lastReportAt = Date()
+            }
+        }
+
+        try output.synchronize()
+        await progress(copiedBytes)
+        try preserveFileAttributes(from: sourceURL, to: destinationURL)
+    }
+
+    private func preserveFileAttributes(from sourceURL: URL, to destinationURL: URL) throws {
+        let fileManager = FileManager.default
+        let sourceAttributes = try fileManager.attributesOfItem(atPath: sourceURL.path)
+        var copiedAttributes: [FileAttributeKey: Any] = [:]
+
+        for key in [FileAttributeKey.posixPermissions, .creationDate, .modificationDate] {
+            if let value = sourceAttributes[key] {
+                copiedAttributes[key] = value
+            }
+        }
+
+        if !copiedAttributes.isEmpty {
+            try fileManager.setAttributes(copiedAttributes, ofItemAtPath: destinationURL.path)
+        }
     }
 
     private func sha256Hex(for fileURL: URL) throws -> String {

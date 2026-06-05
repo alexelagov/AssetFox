@@ -46,6 +46,7 @@ final class IngestViewModel {
     var copyResult: IngestCopyResult?
     var copyError: String?
     var elapsedTime: TimeInterval = 0
+    var copySpeedBytesPerSecond: Double?
     var reportFiles: IngestReportFiles?
     var reportError: String?
     var currentRunRecords: [IngestFileVerificationRecord] = []
@@ -61,7 +62,9 @@ final class IngestViewModel {
     @ObservationIgnored private let reportWriter: IngestReportWriter
     @ObservationIgnored private var sourceScanTask: Task<Void, Never>?
     @ObservationIgnored private var copyTask: Task<Void, Never>?
+    @ObservationIgnored private var runClockTask: Task<Void, Never>?
     @ObservationIgnored private var ingestStartedAt: Date?
+    @ObservationIgnored private var throughputEstimator = IngestThroughputEstimator()
 
     init(
         sourceScanner: IngestSourceScanner = IngestSourceScanner(),
@@ -301,6 +304,54 @@ final class IngestViewModel {
         ByteCountFormatter.string(fromByteCount: copyProgress.totalBytes, countStyle: .file)
     }
 
+    func formattedCopySpeed() -> String {
+        if let copyResult, copyResult.elapsedTime > 0, copyResult.copiedBytes > 0 {
+            return formattedBytesPerSecond(Double(copyResult.copiedBytes) / copyResult.elapsedTime)
+        }
+
+        switch workflowState {
+        case .copying:
+            guard let copySpeedBytesPerSecond, copySpeedBytesPerSecond > 0 else {
+                return elapsedTime < 3 ? "Estimating" : "Waiting"
+            }
+            return formattedBytesPerSecond(copySpeedBytesPerSecond)
+        case .verifying:
+            return "Copy complete"
+        case .completed, .completedWithWarnings:
+            return "Completed"
+        case .failed, .cancelled:
+            return "Stopped"
+        default:
+            return "Not started"
+        }
+    }
+
+    func formattedEstimatedTimeRemaining() -> String {
+        switch workflowState {
+        case .copying:
+            let remainingBytes = max(copyProgress.totalBytes - copyProgress.copiedBytes, 0)
+            guard remainingBytes > 0 else {
+                return verificationEnabledForRun ? "Verifying next" : "Finishing"
+            }
+            guard elapsedTime >= 3,
+                  let copySpeedBytesPerSecond,
+                  copySpeedBytesPerSecond > 0 else {
+                return "Estimating"
+            }
+            return "~\(formattedDuration(TimeInterval(Double(remainingBytes) / copySpeedBytesPerSecond)))"
+        case .verifying:
+            return verificationEnabledForRun ? "Verifying" : "Finishing"
+        case .completed, .completedWithWarnings:
+            return "Completed"
+        case .failed, .cancelled:
+            return "Stopped"
+        case .scanning:
+            return "After scan"
+        default:
+            return "Not started"
+        }
+    }
+
     func formattedDestinationIngestSize() -> String {
         ByteCountFormatter.string(fromByteCount: destinationIngestSizeBytes(), countStyle: .file)
     }
@@ -368,7 +419,10 @@ final class IngestViewModel {
         copyError = nil
         copyResult = nil
         elapsedTime = 0
+        copySpeedBytesPerSecond = nil
+        throughputEstimator.reset()
         ingestStartedAt = Date()
+        startRunClock()
         reportFiles = nil
         reportError = nil
         currentRunRecords = []
@@ -420,20 +474,15 @@ final class IngestViewModel {
                     preserveFolderStructure: preserveFolderStructure
                 ) { progress in
                     await MainActor.run {
-                        self.copyProgress = progress
-                        self.runWarnings = progress.warnings
-                        self.runErrors = progress.errors
-                        if let latestRecord = progress.latestRecord {
-                            self.currentRunRecords.append(latestRecord)
-                        }
-                        self.lastMeaningfulError = progress.errors.last ?? progress.warnings.last
-                        self.workflowState = progress.phase == .verifying ? .verifying : .copying
+                        self.applyCopyProgress(progress)
                     }
                 }
 
                 guard !Task.isCancelled else { return }
+                self.stopRunClock(finalElapsedTime: result.elapsedTime)
                 self.copyResult = result
                 self.elapsedTime = result.elapsedTime
+                self.copySpeedBytesPerSecond = result.elapsedTime > 0 ? Double(result.copiedBytes) / result.elapsedTime : nil
                 self.runWarnings = result.warnings
                 self.runErrors = result.errors
                 self.currentRunRecords = result.verificationRecords
@@ -475,6 +524,7 @@ final class IngestViewModel {
                 ])
                 self.copyTask = nil
             } catch is CancellationError {
+                self.stopRunClock()
                 self.elapsedTime = self.ingestStartedAt.map { Date().timeIntervalSince($0) } ?? 0
                 self.lastMeaningfulError = "The ingest job was cancelled."
                 self.workflowState = .cancelled
@@ -487,6 +537,7 @@ final class IngestViewModel {
                 )
                 self.copyTask = nil
             } catch {
+                self.stopRunClock()
                 if let partialSnapshot = (error as NSError).userInfo["partialSnapshot"] as? IngestPartialRunSnapshot {
                     self.applyPartialSnapshot(partialSnapshot)
                 }
@@ -562,10 +613,13 @@ final class IngestViewModel {
     private func resetRunState(clearReports: Bool) {
         copyTask?.cancel()
         sourceScanTask?.cancel()
+        stopRunClock(finalElapsedTime: 0)
         copyProgress = .idle
         copyResult = nil
         copyError = nil
         elapsedTime = 0
+        copySpeedBytesPerSecond = nil
+        throughputEstimator.reset()
         ingestStartedAt = nil
         currentRunRecords = []
         runWarnings = []
@@ -695,6 +749,65 @@ final class IngestViewModel {
             warnings: snapshot.warnings,
             errors: snapshot.errors
         )
+    }
+
+    private func applyCopyProgress(_ progress: IngestCopyProgress) {
+        copyProgress = progress
+        runWarnings = progress.warnings
+        runErrors = progress.errors
+        if let latestRecord = progress.latestRecord {
+            currentRunRecords.append(latestRecord)
+        }
+        lastMeaningfulError = progress.errors.last ?? progress.warnings.last
+        workflowState = progress.phase == .verifying ? .verifying : .copying
+        refreshRunClock()
+        if progress.phase == .copying {
+            throughputEstimator.record(copiedBytes: progress.copiedBytes, at: Date())
+            copySpeedBytesPerSecond = throughputEstimator.bytesPerSecond
+        }
+    }
+
+    private func startRunClock() {
+        runClockTask?.cancel()
+        runClockTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 1_000_000_000)
+                await MainActor.run {
+                    self?.refreshRunClock()
+                }
+            }
+        }
+    }
+
+    private func stopRunClock(finalElapsedTime: TimeInterval? = nil) {
+        runClockTask?.cancel()
+        runClockTask = nil
+        if let finalElapsedTime {
+            elapsedTime = finalElapsedTime
+        } else {
+            refreshRunClock()
+        }
+    }
+
+    private func refreshRunClock() {
+        guard let ingestStartedAt else { return }
+        elapsedTime = Date().timeIntervalSince(ingestStartedAt)
+    }
+
+    private func formattedBytesPerSecond(_ bytesPerSecond: Double) -> String {
+        let formatter = ByteCountFormatter()
+        formatter.countStyle = .file
+        formatter.allowedUnits = [.useKB, .useMB, .useGB]
+        return "\(formatter.string(fromByteCount: Int64(bytesPerSecond)))/s"
+    }
+
+    private func formattedDuration(_ duration: TimeInterval) -> String {
+        guard duration.isFinite, duration > 0 else { return "Estimating" }
+        let formatter = DateComponentsFormatter()
+        formatter.allowedUnits = duration >= 3600 ? [.hour, .minute, .second] : [.minute, .second]
+        formatter.unitsStyle = .abbreviated
+        formatter.maximumUnitCount = duration >= 3600 ? 2 : 2
+        return formatter.string(from: duration) ?? "Estimating"
     }
 
     private func currentWarnings() -> [String] {
@@ -965,5 +1078,43 @@ final class IngestViewModel {
         } else {
             UserDefaults.standard.set(urls.map(\.path), forKey: key)
         }
+    }
+}
+
+private struct IngestThroughputEstimator {
+    private struct Sample {
+        var date: Date
+        var copiedBytes: Int64
+    }
+
+    private let window: TimeInterval = 20
+    private let minimumDuration: TimeInterval = 2
+    private var samples: [Sample] = []
+
+    var bytesPerSecond: Double? {
+        guard let first = samples.first, let last = samples.last else { return nil }
+        let elapsed = last.date.timeIntervalSince(first.date)
+        let bytes = last.copiedBytes - first.copiedBytes
+        guard elapsed >= minimumDuration, bytes > 0 else { return nil }
+        return Double(bytes) / elapsed
+    }
+
+    mutating func record(copiedBytes: Int64, at date: Date) {
+        if samples.last?.copiedBytes == copiedBytes {
+            prune(at: date)
+            return
+        }
+
+        samples.append(Sample(date: date, copiedBytes: copiedBytes))
+        prune(at: date)
+    }
+
+    mutating func reset() {
+        samples.removeAll()
+    }
+
+    private mutating func prune(at date: Date) {
+        let oldestAllowed = date.addingTimeInterval(-window)
+        samples.removeAll { $0.date < oldestAllowed }
     }
 }

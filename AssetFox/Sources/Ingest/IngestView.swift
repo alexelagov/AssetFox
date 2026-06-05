@@ -257,6 +257,12 @@ struct IngestView: View {
                 statPill(title: "State", value: viewModel.verificationStateTitle)
             }
 
+            HStack {
+                statPill(title: "Elapsed", value: viewModel.formattedElapsedTime())
+                statPill(title: "Speed", value: viewModel.formattedCopySpeed())
+                statPill(title: "Time Remaining", value: viewModel.formattedEstimatedTimeRemaining())
+            }
+
             LabeledContent("Current file") {
                 Text(viewModel.currentCopyPath)
                     .font(.caption.monospaced())

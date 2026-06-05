@@ -15,9 +15,9 @@
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
-    <string>0.4.3</string>
+    <string>0.4.5</string>
     <key>CFBundleVersion</key>
-    <string>12</string>
+    <string>14</string>
     <key>AssetFoxTelemetryEndpointURL</key>
     <string>$(ASSETFOX_TELEMETRY_ENDPOINT_URL)</string>
     <key>AssetFoxTelemetryAPIKey</key>

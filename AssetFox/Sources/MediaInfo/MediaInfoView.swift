@@ -161,8 +161,9 @@ struct MediaInfoView: View {
         }
     }
 
+    @ViewBuilder
     private var workspaceSection: some View {
-        ViewThatFits(in: .horizontal) {
+        if presentationMode == .compare {
             VStack(alignment: .leading, spacing: 24) {
                 sourcePanel
 
@@ -175,15 +176,15 @@ struct MediaInfoView: View {
 
                 metadataPanel
             }
-
+            .frame(maxWidth: .infinity, alignment: .leading)
+        } else {
             VStack(alignment: .leading, spacing: 24) {
                 sourcePanel
                 selectionPanel
-                summaryPanel
                 metadataPanel
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var sourcePanel: some View {
@@ -398,7 +399,12 @@ struct MediaInfoView: View {
 
     @ViewBuilder
     private var inspectMetadataContent: some View {
-        switch selectedInspectionState {
+        VStack(alignment: .leading, spacing: 14) {
+            if let selectedItem {
+                selectedFileOverview(for: selectedItem)
+            }
+
+            switch selectedInspectionState {
             case .idle:
                 MediaInfoEmptyState(message: "Select a file to inspect its media metadata.")
             case .loading:
@@ -466,6 +472,66 @@ struct MediaInfoView: View {
                     }
                 }
             }
+        }
+    }
+
+    private func selectedFileOverview(for item: MediaInfoItem) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .center, spacing: 10) {
+                Image(systemName: item.kind.symbolName)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(Color.accentColor)
+                    .frame(width: 24, height: 24)
+                    .background(
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .fill(Color.accentColor.opacity(0.12))
+                    )
+
+                Text("Selected file context")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(.secondary)
+
+                Spacer(minLength: 12)
+
+                Button("Export TXT", action: exportMetadataReport)
+                    .buttonStyle(.bordered)
+                    .disabled(!canExportMetadata)
+                    .help("Save the current metadata inspector as a plain-text report.")
+            }
+
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 8) {
+                    MediaInfoBadge(title: item.kind.displayName, tint: .blue)
+                    MediaInfoBadge(title: item.extensionLabel, tint: .gray)
+                    MediaInfoBadge(title: item.formattedFileSize, tint: .gray)
+                    MediaInfoBadge(title: "Created \(item.createdAt)", tint: .gray)
+                    MediaInfoBadge(title: "Modified \(item.modifiedAt)", tint: .gray)
+                }
+
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(spacing: 8) {
+                        MediaInfoBadge(title: item.kind.displayName, tint: .blue)
+                        MediaInfoBadge(title: item.extensionLabel, tint: .gray)
+                        MediaInfoBadge(title: item.formattedFileSize, tint: .gray)
+                    }
+                    HStack(spacing: 8) {
+                        MediaInfoBadge(title: "Created \(item.createdAt)", tint: .gray)
+                        MediaInfoBadge(title: "Modified \(item.modifiedAt)", tint: .gray)
+                    }
+                }
+            }
+
+            if let exportFeedback {
+                Text(exportFeedback)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: AssetFoxDesign.innerRadius, style: .continuous)
+                .fill(Color(nsColor: .controlBackgroundColor))
+        )
     }
 
     @ViewBuilder
