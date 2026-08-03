@@ -12,3 +12,5 @@ xcuserdata/
 *.xcworkspace/xcuserdata/
 *.xcodeproj/xcuserdata/
 Config/Telemetry.local.xcconfig
+.build/
+.swiftpm/

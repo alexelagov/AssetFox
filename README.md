@@ -19,6 +19,7 @@ This repository is prepared for public visibility with telemetry secrets and rel
 - `Collect Media`: collect media from Premiere FCP XML or native `.prproj` files, filter FCP XML paths to supported media assets, merge XML/project references, relink sources, and report missing or skipped media.
 - `Media Info`: inspect technical metadata for video, audio, image, RAW, MOV, MXF, and other media files, with compare mode for checking differences between files.
 - `About`: show version/build, MediaInfoLib status, FFmpeg/ffprobe availability, and anonymous analytics controls.
+- `assetfox-cli`: headless command-line companion (`swift build`) exposing the same inspection and quality-check engines as JSON for automation. See [docs/CLI.md](docs/CLI.md).
 
 ## Current Release Notes
 
@@ -86,6 +87,7 @@ See [docs/SMOKE_TEST.md](docs/SMOKE_TEST.md) for the full launch and feature che
 
 ## Supporting Docs
 
+- [Headless CLI](docs/CLI.md)
 - [Smoke Test](docs/SMOKE_TEST.md)
 - [FFmpeg Tool Placement](docs/FFmpeg-Tools.md)
 - [MediaInfoLib Embedding](docs/MediaInfoLib-Embedding.md)

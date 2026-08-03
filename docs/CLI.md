@@ -1,0 +1,107 @@
+# assetfox-cli
+
+Headless companion to the AssetFox app. It reuses the app's inspection and
+quality-check engines (`MediaInfoInspector`, `MediaInfoLibService`,
+`QualityCheckAnalyzer`) so command-line runs and app runs report the same
+values from the same code.
+
+Primary consumer: the PM Studio deliverables-check service, which shells out
+to this binary and parses the JSON contract below.
+
+## Build
+
+Requires macOS 15+ and a Swift 6 toolchain (Command Line Tools are enough,
+full Xcode is not needed):
+
+```bash
+swift build -c release
+.build/release/assetfox-cli doctor --pretty
+```
+
+The MediaInfoLib dylib is bundled as an SPM resource
+(`AssetFox_AssetFoxCLI.bundle`), which `swift build` places next to the
+binary. When relocating the binary, keep the bundle beside it, or point
+`ASSETFOX_MEDIAINFO_DYLIB` at a `libmediainfo` dylib. ffmpeg/ffprobe resolve
+from the app's usual candidates (bundled `Tools/`, `/opt/homebrew/bin`,
+`/usr/local/bin`).
+
+The package compiles a curated subset of app sources plus a CLI-only
+`MediaInfoLibBridge` shim (`cli/Sources/MediaInfoLibBridgeShim.swift`) that
+dlopens the dylib instead of link-time binding. Never add that shim to the
+app target - the app keeps its Objective-C++ bridge.
+
+## Conventions
+
+- Exactly one JSON object on stdout; progress and errors go to stderr.
+- Exit codes: `0` success (per-file problems are reported inside the JSON),
+  `2` usage error, `1` unexpected failure.
+- Every payload carries `schema` (`assetfox.cli/v1`), `cli_version`,
+  and `command`.
+- Keys are `snake_case`; absent values are omitted, never `null`.
+- `--pretty` pretty-prints; default output is compact with sorted keys.
+
+## `inspect` - file passports
+
+```bash
+assetfox-cli inspect [--pretty] <file>...
+```
+
+Returns `files`, one passport per input, in input order. A passport has three
+layers with different trust levels:
+
+| Layer | Source | Use for |
+| --- | --- | --- |
+| `av` | AVFoundation | numeric comparison: `duration_seconds`, `width`, `height`, `nominal_frame_rate` |
+| `summary` | merged MediaInfoLib -> AVFoundation -> ImageIO -> ffprobe | display strings; `metadata_source` names the winning chain |
+| `media_info` | MediaInfoLib complete dump (when the dylib loads) | exact codec/profile matching: `general`, `video_tracks[]`, `audio_tracks[]` |
+
+Unreadable inputs produce `{path, file_name, error}` instead. Per-file
+`warnings[]`/`errors[]` surface degraded metadata sources.
+
+`media_info` values are MediaInfo display strings (for example
+`format: "ProRes"`, `format_profile: "422 HQ"`, `frame_rate:
+"29.970 (30000/1001) FPS"`, `chroma_subsampling: "4:2:2"`). Consumers should
+match on them verbatim rather than re-deriving numbers from them; numeric
+checks belong to `av`.
+
+## `qc` - quality findings
+
+```bash
+assetfox-cli qc [--reference <file>] [--tolerance-frames N] [--include-raw] [--pretty] <file>...
+```
+
+Runs the app's ffmpeg analysis (blackdetect, freezedetect, scene-cut
+comparison against the reference). `--tolerance-frames` defaults to 2, same
+as the app. The reference file is added to the run automatically and marked
+`is_reference` in `files`.
+
+Payload: `files[]` (with the loaded timing metadata), `findings[]`, and
+optionally `missing_files[]`, `warnings[]`, `raw_outputs[]`
+(with `--include-raw`).
+
+A finding:
+
+```json
+{
+  "severity": "info | warning | critical",
+  "kind": "black_frame | freeze_frame | cut_mismatch | runtime",
+  "file_name": "broken.mp4",
+  "time_seconds": 3.0,
+  "duration_seconds": 1.2,
+  "message": "Black segment detected",
+  "details": "blackdetect: start 3.0, duration 1.2"
+}
+```
+
+`kind: "runtime"` with `severity: "critical"` means ffmpeg itself was
+unavailable - treat the run as not performed rather than as a clean file.
+
+## `doctor` - runtime health
+
+```bash
+assetfox-cli doctor [--pretty]
+```
+
+Reports `media_info_lib` (`loaded`, resolved `path`, `errors[]`) and
+`ffmpeg`/`ffprobe` (`available`, `path`, `source`). Orchestrators should call
+it once at startup and refuse deep checks when ffmpeg is missing.
