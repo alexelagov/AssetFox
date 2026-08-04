@@ -127,7 +127,8 @@ struct CLIQualityCheckCommand {
                 }
                 return file
             },
-            "findings": result.findings.map(finding(from:))
+            "findings": result.findings.map(finding(from:)),
+            "measurements": result.measurements.map(measurement(from:))
         ]
 
         if !missing.isEmpty {
@@ -158,6 +159,25 @@ struct CLIQualityCheckCommand {
         ]
         payload.setIfPresent("duration_seconds", finding.durationSeconds)
         payload.setIfPresent("details", finding.details)
+        return payload
+    }
+
+    /// Measured facts about the file, for a caller that wants to compare them
+    /// against a delivery spec. Absent keys mean "not measured" — never 0.
+    private func measurement(from measurement: QualityCheckMeasurement) -> [String: Any] {
+        var payload: [String: Any] = ["file_name": measurement.fileName]
+        if let x = measurement.contentX,
+           let y = measurement.contentY,
+           let width = measurement.contentWidth,
+           let height = measurement.contentHeight {
+            payload["content_bounds"] = ["x": x, "y": y, "width": width, "height": height]
+        }
+        payload.setIfPresent("content_aspect", measurement.contentAspect)
+        payload.setIfPresent("measured_frames", measurement.measuredFrames)
+        payload.setIfPresent("measured_duration_seconds", measurement.measuredDurationSeconds)
+        payload.setIfPresent("measured_frame_rate", measurement.measuredFrameRate)
+        payload.setIfPresent("unique_frames", measurement.uniqueFrames)
+        payload.setIfPresent("unique_frame_rate", measurement.uniqueFrameRate)
         return payload
     }
 

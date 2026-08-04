@@ -75,9 +75,9 @@ comparison against the reference). `--tolerance-frames` defaults to 2, same
 as the app. The reference file is added to the run automatically and marked
 `is_reference` in `files`.
 
-Payload: `files[]` (with the loaded timing metadata), `findings[]`, and
-optionally `missing_files[]`, `warnings[]`, `raw_outputs[]`
-(with `--include-raw`).
+Payload: `files[]` (with the loaded timing metadata), `findings[]`,
+`measurements[]`, and optionally `missing_files[]`, `warnings[]`,
+`raw_outputs[]` (with `--include-raw`).
 
 A finding:
 
@@ -95,6 +95,34 @@ A finding:
 
 `kind: "runtime"` with `severity: "critical"` means ffmpeg itself was
 unavailable - treat the run as not performed rather than as a clean file.
+
+A measurement - what the file *is*, for a caller holding a delivery spec to
+compare against. Findings are events; these are facts:
+
+```json
+{
+  "file_name": "social_cut.mp4",
+  "content_bounds": { "x": 656, "y": 0, "width": 608, "height": 1080 },
+  "content_aspect": 0.5629,
+  "measured_frames": 300,
+  "measured_duration_seconds": 10.0,
+  "measured_frame_rate": 30.0,
+  "unique_frames": 240,
+  "unique_frame_rate": 24.0
+}
+```
+
+`content_bounds` is the active picture inside the coded frame (cropdetect),
+equal to the full frame when there are no bars - so `content_aspect` on a
+1920x1080 file that reads 0.5629 is a vertical cut pillarboxed into a
+landscape frame, which no container-level check can see.
+
+`measured_*` come from the decode itself rather than from the container's
+claims. `unique_frame_rate` counts distinct pictures (`mpdecimate`): a 24p
+master padded into a 30p container measures 30 and 24 respectively.
+
+Every key is optional. A missing key means the pass did not produce that
+number; it never means zero.
 
 ## `doctor` - runtime health
 

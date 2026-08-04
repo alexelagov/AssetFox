@@ -55,7 +55,8 @@ struct QualityCheckAnalyzer: Sendable {
                 }
                 return lhs.timeSeconds < rhs.timeSeconds
             },
-            rawOutputs: rawOutputs
+            rawOutputs: rawOutputs,
+            measurements: fileAnalyses.map(\.measurement)
         )
     }
 
@@ -72,8 +73,28 @@ struct QualityCheckAnalyzer: Sendable {
             executableURL: ffmpegURL,
             arguments: ["-hide_banner", "-nostats", "-i", item.url.path, "-vf", "select=gt(scene\\,0.35),showinfo", "-an", "-f", "null", "-"]
         )
+        // Measurement passes. `-progress pipe:1` puts the decoded frame count
+        // and the played duration on stdout as key=value lines, while
+        // cropdetect's per-frame report goes to stderr — one decode, both
+        // halves of the "declared vs actual" comparison.
+        async let bounds = runFFmpeg(
+            executableURL: ffmpegURL,
+            arguments: [
+                "-hide_banner", "-nostats", "-progress", "pipe:1", "-i", item.url.path,
+                "-map", "0:v:0", "-vf", "cropdetect=limit=24:round=2:reset=0", "-an", "-f", "null", "-"
+            ]
+        )
+        async let decimated = runFFmpeg(
+            executableURL: ffmpegURL,
+            arguments: [
+                "-hide_banner", "-nostats", "-progress", "pipe:1", "-i", item.url.path,
+                "-map", "0:v:0", "-vf", "mpdecimate", "-an", "-f", "null", "-"
+            ]
+        )
 
         let outputs = await [black, freeze, scene]
+        let boundsResult = await bounds
+        let decimatedResult = await decimated
         let rawOutput = outputs.map(\.combinedOutput).joined(separator: "\n\n")
         let blackSegments = parseBlackSegments(rawOutput)
         let freezeSegments = parseFreezeSegments(rawOutput)
@@ -103,7 +124,60 @@ struct QualityCheckAnalyzer: Sendable {
             )
         })
 
-        return PerFileAnalysis(item: item, findings: findings, cutPoints: cutPoints, rawOutput: rawOutput)
+        let measurement = measure(
+            item: item,
+            boundsOutput: boundsResult,
+            decimatedOutput: decimatedResult
+        )
+
+        return PerFileAnalysis(
+            item: item,
+            findings: findings,
+            cutPoints: cutPoints,
+            rawOutput: rawOutput,
+            measurement: measurement
+        )
+    }
+
+    private func measure(
+        item: QualityCheckVideoItem,
+        boundsOutput: ProcessResult,
+        decimatedOutput: ProcessResult
+    ) -> QualityCheckMeasurement {
+        var measurement = QualityCheckMeasurement(fileName: item.name)
+
+        // cropdetect refines its guess as it goes; the last report is the one
+        // that saw the whole file.
+        if let crop = lines(in: boundsOutput.errorOutput).last(where: { $0.contains("crop=") }) {
+            measurement.contentWidth = intValue(after: "w:", in: crop)
+            measurement.contentHeight = intValue(after: "h:", in: crop)
+            measurement.contentX = intValue(after: "x:", in: crop)
+            measurement.contentY = intValue(after: "y:", in: crop)
+        }
+
+        measurement.measuredFrames = progressValue("frame", in: boundsOutput.output).map(Int.init)
+        if let micros = progressValue("out_time_us", in: boundsOutput.output), micros > 0 {
+            measurement.measuredDurationSeconds = micros / 1_000_000
+        }
+        measurement.uniqueFrames = progressValue("frame", in: decimatedOutput.output).map(Int.init)
+
+        return measurement
+    }
+
+    /// `-progress` repeats its block as the job runs; the final one is the total.
+    private func progressValue(_ key: String, in text: String) -> Double? {
+        lines(in: text)
+            .compactMap { line -> Double? in
+                let parts = line.split(separator: "=", maxSplits: 1)
+                guard parts.count == 2, parts[0].trimmingCharacters(in: .whitespaces) == key else { return nil }
+                return Double(parts[1].trimmingCharacters(in: .whitespaces))
+            }
+            .last
+    }
+
+    private func intValue(after marker: String, in line: String) -> Int? {
+        guard let raw = value(after: marker, in: line), raw.isFinite else { return nil }
+        return Int(raw)
     }
 
     private func compareCutPoints(_ analyses: [PerFileAnalysis], referenceItemID: UUID?, toleranceFrames: Int) -> [QualityCheckFinding] {
@@ -213,18 +287,31 @@ struct QualityCheckAnalyzer: Sendable {
                 process.standardOutput = stdout
                 process.standardError = stderr
 
+                // Both pipes must be drained WHILE ffmpeg runs. A per-frame
+                // filter like cropdetect writes a line per frame, so waiting
+                // for exit first fills the 64K pipe buffer and deadlocks:
+                // ffmpeg blocks on write, we block on wait.
+                let outSink = ByteSink(stdout.fileHandleForReading)
+                let errSink = ByteSink(stderr.fileHandleForReading)
+
                 do {
                     try process.run()
                     process.waitUntilExit()
+                    outSink.finish()
+                    errSink.finish()
                 } catch {
                     processBox.clear(process)
+                    outSink.finish()
+                    errSink.finish()
                     return ProcessResult(exitCode: -1, output: "", errorOutput: error.localizedDescription)
                 }
 
                 processBox.clear(process)
-                let output = String(data: stdout.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
-                let errorOutput = String(data: stderr.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
-                return ProcessResult(exitCode: process.terminationStatus, output: output, errorOutput: errorOutput)
+                return ProcessResult(
+                    exitCode: process.terminationStatus,
+                    output: outSink.text,
+                    errorOutput: errSink.text
+                )
             }.value
         } onCancel: {
             processBox.terminate()
@@ -297,6 +384,7 @@ private struct PerFileAnalysis: Sendable {
     let findings: [QualityCheckFinding]
     let cutPoints: [Double]
     let rawOutput: String
+    let measurement: QualityCheckMeasurement
 }
 
 private struct CutPointObservation: Sendable {
@@ -362,6 +450,40 @@ private struct ProcessResult: Sendable {
 
     var combinedOutput: String {
         [output, errorOutput].filter { !$0.isEmpty }.joined(separator: "\n")
+    }
+}
+
+/// Drains one pipe on its own thread so a chatty ffmpeg filter can never
+/// block on a full buffer. `finish()` joins the reader after the process
+/// exits, at which point the handle is at EOF and `text` is complete.
+private final class ByteSink: @unchecked Sendable {
+    private let lock = NSLock()
+    private var data = Data()
+    private let reachedEOF = DispatchSemaphore(value: 0)
+
+    init(_ handle: FileHandle) {
+        DispatchQueue.global(qos: .utility).async { [self] in
+            while true {
+                let chunk = handle.availableData
+                if chunk.isEmpty { break }
+                lock.lock()
+                data.append(chunk)
+                lock.unlock()
+            }
+            reachedEOF.signal()
+        }
+    }
+
+    /// Blocks until the reader sees EOF. Call after the process exits, so
+    /// `text` covers everything the child wrote.
+    func finish() {
+        reachedEOF.wait()
+    }
+
+    var text: String {
+        lock.lock()
+        defer { lock.unlock() }
+        return String(data: data, encoding: .utf8) ?? ""
     }
 }
 

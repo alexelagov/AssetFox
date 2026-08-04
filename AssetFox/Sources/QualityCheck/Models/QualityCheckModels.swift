@@ -124,9 +124,48 @@ struct QualityCheckAnalyzerOutput: Identifiable, Sendable {
     var rawOutput: String
 }
 
+/// Per-file numbers a QC pass measures rather than judges. Findings say
+/// "something happened at 12.4s"; these say "this is what the file is",
+/// and the caller compares them against whatever the delivery spec asked
+/// for. Every field is optional: ffmpeg may fail on one pass and not the
+/// other, and a missing number must stay missing rather than become 0.
+struct QualityCheckMeasurement: Sendable {
+    var fileName: String
+    /// Active picture inside the coded frame, from cropdetect. Equal to the
+    /// full frame when there are no bars.
+    var contentX: Int?
+    var contentY: Int?
+    var contentWidth: Int?
+    var contentHeight: Int?
+    /// Frames ffmpeg actually decoded, and the duration it actually played.
+    var measuredFrames: Int?
+    var measuredDurationSeconds: Double?
+    /// Frames left after mpdecimate drops duplicates. Lower than
+    /// measuredFrames when a lower-rate master was padded up.
+    var uniqueFrames: Int?
+
+    var contentAspect: Double? {
+        guard let contentWidth, let contentHeight, contentWidth > 0, contentHeight > 0 else { return nil }
+        return Double(contentWidth) / Double(contentHeight)
+    }
+
+    var measuredFrameRate: Double? {
+        guard let measuredFrames, let measuredDurationSeconds, measuredDurationSeconds > 0 else { return nil }
+        return Double(measuredFrames) / measuredDurationSeconds
+    }
+
+    /// Rate of distinct pictures — 24 for a 24p master padded into a 30p
+    /// container, where measuredFrameRate would say 30.
+    var uniqueFrameRate: Double? {
+        guard let uniqueFrames, let measuredDurationSeconds, measuredDurationSeconds > 0 else { return nil }
+        return Double(uniqueFrames) / measuredDurationSeconds
+    }
+}
+
 struct QualityCheckAnalysisResult: Sendable {
     var findings: [QualityCheckFinding]
     var rawOutputs: [QualityCheckAnalyzerOutput]
+    var measurements: [QualityCheckMeasurement] = []
 }
 
 struct QualityCheckFormatting {
