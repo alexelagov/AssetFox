@@ -1,6 +1,11 @@
 import Foundation
 
 struct QualityCheckAnalyzer: Sendable {
+    /// scdet's 0-100 scale. Low on purpose - see QualityCheckCutPoint: the
+    /// point is to record weak changes so a consumer can tell "this cut is
+    /// absent here" from "this cut scored lower in this crop".
+    static let cutDetectionFloor = 4
+
     private let ffmpegURL: URL?
 
     init(ffmpegURL: URL? = FFmpegRuntimeResolver.resolve(.ffmpeg).executableURL) {
@@ -91,10 +96,26 @@ struct QualityCheckAnalyzer: Sendable {
                 "-map", "0:v:0", "-vf", "mpdecimate", "-an", "-f", "null", "-"
             ]
         )
+        // Scene changes with their scores. The threshold is deliberately low:
+        // the consumer compares one export against another and needs to see a
+        // weak-but-present change, not a yes/no verdict from this pass. The
+        // select stage keeps the output to the events themselves.
+        async let cuts = runFFmpeg(
+            executableURL: ffmpegURL,
+            arguments: [
+                "-hide_banner", "-nostats", "-i", item.url.path, "-map", "0:v:0",
+                "-vf",
+                "scdet=threshold=\(Self.cutDetectionFloor),"
+                    + "metadata=mode=select:key=lavfi.scd.time,"
+                    + "metadata=mode=print:file=-",
+                "-an", "-f", "null", "-"
+            ]
+        )
 
         let outputs = await [black, freeze, scene]
         let boundsResult = await bounds
         let decimatedResult = await decimated
+        let cutsResult = await cuts
         let rawOutput = outputs.map(\.combinedOutput).joined(separator: "\n\n")
         let blackSegments = parseBlackSegments(rawOutput)
         let freezeSegments = parseFreezeSegments(rawOutput)
@@ -127,7 +148,8 @@ struct QualityCheckAnalyzer: Sendable {
         let measurement = measure(
             item: item,
             boundsOutput: boundsResult,
-            decimatedOutput: decimatedResult
+            decimatedOutput: decimatedResult,
+            cutsOutput: cutsResult
         )
 
         return PerFileAnalysis(
@@ -142,9 +164,11 @@ struct QualityCheckAnalyzer: Sendable {
     private func measure(
         item: QualityCheckVideoItem,
         boundsOutput: ProcessResult,
-        decimatedOutput: ProcessResult
+        decimatedOutput: ProcessResult,
+        cutsOutput: ProcessResult
     ) -> QualityCheckMeasurement {
         var measurement = QualityCheckMeasurement(fileName: item.name)
+        measurement.cutPoints = parseCutPoints(cutsOutput.output)
 
         // cropdetect refines its guess as it goes; the last report is the one
         // that saw the whole file.
@@ -162,6 +186,26 @@ struct QualityCheckAnalyzer: Sendable {
         measurement.uniqueFrames = progressValue("frame", in: decimatedOutput.output).map(Int.init)
 
         return measurement
+    }
+
+    /// The metadata printer emits a block per selected frame: the scd.time it
+    /// was selected on, and the scd.score that produced it.
+    private func parseCutPoints(_ text: String) -> [QualityCheckCutPoint] {
+        var points: [QualityCheckCutPoint] = []
+        var pendingScore: Double?
+
+        for line in lines(in: text) {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if trimmed.hasPrefix("lavfi.scd.score=") {
+                pendingScore = value(after: "=", in: trimmed)
+            } else if trimmed.hasPrefix("lavfi.scd.time=") {
+                guard let time = value(after: "=", in: trimmed) else { continue }
+                points.append(QualityCheckCutPoint(timeSeconds: time, score: pendingScore ?? 0))
+                pendingScore = nil
+            }
+        }
+
+        return points
     }
 
     /// `-progress` repeats its block as the job runs; the final one is the total.

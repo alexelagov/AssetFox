@@ -129,8 +129,19 @@ struct QualityCheckAnalyzerOutput: Identifiable, Sendable {
 /// and the caller compares them against whatever the delivery spec asked
 /// for. Every field is optional: ffmpeg may fail on one pass and not the
 /// other, and a missing number must stay missing rather than become 0.
+/// One detected scene change, with the score that detected it. The score is
+/// what makes cross-export comparison possible: the same cut scores
+/// differently in a 16:9 and a 9:16 crop of one edit, because the crop
+/// changes how much of the frame the cut moves, so "was it detected" is a
+/// worse question than "how strong was the change here".
+struct QualityCheckCutPoint: Sendable {
+    var timeSeconds: Double
+    var score: Double
+}
+
 struct QualityCheckMeasurement: Sendable {
     var fileName: String
+    var cutPoints: [QualityCheckCutPoint] = []
     /// Active picture inside the coded frame, from cropdetect. Equal to the
     /// full frame when there are no bars.
     var contentX: Int?
