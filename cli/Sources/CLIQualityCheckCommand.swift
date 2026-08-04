@@ -178,6 +178,11 @@ struct CLIQualityCheckCommand {
         payload.setIfPresent("measured_frame_rate", measurement.measuredFrameRate)
         payload.setIfPresent("unique_frames", measurement.uniqueFrames)
         payload.setIfPresent("unique_frame_rate", measurement.uniqueFrameRate)
+        if !measurement.cutPoints.isEmpty {
+            payload["cut_points"] = measurement.cutPoints.map {
+                ["time_seconds": $0.timeSeconds, "score": $0.score]
+            }
+        }
         return payload
     }
 

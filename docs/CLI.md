@@ -121,6 +121,14 @@ landscape frame, which no container-level check can see.
 claims. `unique_frame_rate` counts distinct pictures (`mpdecimate`): a 24p
 master padded into a 30p container measures 30 and 24 respectively.
 
+`cut_points` lists detected scene changes as
+`{ "time_seconds": 8.32, "score": 13.4 }`, scores on scdet's 0-100 scale.
+The detection floor is deliberately low (4), because the intended consumer
+compares one export against another: the same cut scores differently in a
+16:9 and a 9:16 crop of one edit, since the crop changes how much of the
+frame the cut moves. Comparing "was it detected" across crops produces
+false mismatches; comparing "how strong was the change here" does not.
+
 Every key is optional. A missing key means the pass did not produce that
 number; it never means zero.
 
