@@ -87,6 +87,18 @@ enum QualityCheckFindingKind: String, Sendable {
     case runtime = "Runtime"
 }
 
+/// What a detector actually saw, once something looked at the pixels.
+///
+/// `blackdetect` answers a yes/no question with a threshold baked in, and a
+/// star field passes it: almost every pixel IS below the floor. The
+/// difference between that and a genuine black is not the count of dark
+/// pixels but whether anything is bright, so the classification carries the
+/// numbers it was made from and a reader can disagree with it.
+enum QualityCheckSegmentClass: String, Sendable {
+    case fullBlack = "full_black"
+    case dark = "dark"
+}
+
 struct QualityCheckFinding: Identifiable, Sendable {
     let id: UUID
     var severity: QualityCheckSeverity
@@ -96,6 +108,11 @@ struct QualityCheckFinding: Identifiable, Sendable {
     var durationSeconds: Double?
     var message: String
     var details: String?
+    var classification: QualityCheckSegmentClass?
+    /// Named measurements behind the classification (luma averages, peak,
+    /// below-threshold pixel ratio, the threshold used). Empty when the
+    /// finding is not one a measurement pass covers.
+    var measurements: [String: Double]
 
     init(
         id: UUID = UUID(),
@@ -105,7 +122,9 @@ struct QualityCheckFinding: Identifiable, Sendable {
         timeSeconds: Double,
         durationSeconds: Double? = nil,
         message: String,
-        details: String? = nil
+        details: String? = nil,
+        classification: QualityCheckSegmentClass? = nil,
+        measurements: [String: Double] = [:]
     ) {
         self.id = id
         self.severity = severity
@@ -115,6 +134,8 @@ struct QualityCheckFinding: Identifiable, Sendable {
         self.durationSeconds = durationSeconds
         self.message = message
         self.details = details
+        self.classification = classification
+        self.measurements = measurements
     }
 }
 

@@ -6,6 +6,22 @@ struct QualityCheckAnalyzer: Sendable {
     /// absent here" from "this cut scored lower in this crop".
     static let cutDetectionFloor = 4
 
+    // What separates black from merely dark. `blackdetect` finds candidates
+    // cheaply and generously; these decide what a candidate turns out to be,
+    // and they are constants rather than literals because a night exterior
+    // and a fade-out differ by exactly these numbers.
+
+    /// 8-bit luma at or below which a pixel counts as black. Frames are
+    /// converted to yuv420p first so the scale is always 0-255.
+    static let blackPixelThreshold = 32
+    /// Percentage of pixels that must be below the threshold, in EVERY frame
+    /// of the segment, before it can be called full black.
+    static let fullBlackPixelRatio = 99.0
+    /// And nothing anywhere in the segment may be brighter than this. A star,
+    /// a logo edge, a practical light in shot - any of them is visible detail,
+    /// and visible detail is not a black frame.
+    static let fullBlackPeakLuma = 40.0
+
     private let ffmpegURL: URL?
 
     init(ffmpegURL: URL? = FFmpegRuntimeResolver.resolve(.ffmpeg).executableURL) {
@@ -122,17 +138,26 @@ struct QualityCheckAnalyzer: Sendable {
         let cutPoints = parseSceneCutPoints(rawOutput)
 
         var findings: [QualityCheckFinding] = []
-        findings.append(contentsOf: blackSegments.map { segment in
-            QualityCheckFinding(
-                severity: segment.duration >= 0.5 ? .warning : .info,
-                kind: .blackFrame,
-                fileName: item.name,
-                timeSeconds: segment.start,
-                durationSeconds: segment.duration,
-                message: "Black segment detected",
-                details: "blackdetect: start \(segment.start), duration \(segment.duration)"
+        for segment in blackSegments {
+            // One short decode per candidate, not per file: blackdetect has
+            // already narrowed it to a handful of places worth looking at.
+            let evidence = await measureSegment(item: item, segment: segment, ffmpegURL: ffmpegURL)
+            findings.append(
+                QualityCheckFinding(
+                    severity: segment.duration >= 0.5 ? .warning : .info,
+                    kind: .blackFrame,
+                    fileName: item.name,
+                    timeSeconds: segment.start,
+                    durationSeconds: segment.duration,
+                    message: evidence.classification == .fullBlack
+                        ? "Black segment detected"
+                        : "Dark segment detected (not full black)",
+                    details: evidence.summary,
+                    classification: evidence.classification,
+                    measurements: evidence.measurements
+                )
             )
-        })
+        }
         findings.append(contentsOf: freezeSegments.map { segment in
             QualityCheckFinding(
                 severity: segment.duration >= 1.0 ? .warning : .info,
@@ -159,6 +184,60 @@ struct QualityCheckAnalyzer: Sendable {
             rawOutput: rawOutput,
             measurement: measurement
         )
+    }
+
+    /// Look at the pixels of one candidate segment.
+    ///
+    /// `blackframe` reports, per frame, the percentage of pixels below the
+    /// threshold; `signalstats` reports the average and the peak luma. Read
+    /// together they answer the question blackdetect cannot: is there
+    /// anything in this picture, or is there nothing.
+    private func measureSegment(
+        item: QualityCheckVideoItem,
+        segment: TimedSegment,
+        ffmpegURL: URL
+    ) async -> SegmentEvidence {
+        let filters = [
+            "format=yuv420p",
+            "blackframe=amount=0:threshold=\(Self.blackPixelThreshold)",
+            "signalstats",
+            "metadata=mode=print:key=lavfi.signalstats.YAVG:file=-",
+            "metadata=mode=print:key=lavfi.signalstats.YMAX:file=-"
+        ].joined(separator: ",")
+
+        let result = await runFFmpeg(
+            executableURL: ffmpegURL,
+            arguments: [
+                "-hide_banner", "-nostats",
+                "-ss", String(format: "%.3f", segment.start),
+                "-t", String(format: "%.3f", max(segment.duration, 0.04)),
+                "-i", item.url.path, "-map", "0:v:0",
+                "-vf", filters, "-an", "-f", "null", "-"
+            ]
+        )
+
+        let averages = metadataValues("lavfi.signalstats.YAVG", in: result.output)
+        let peaks = metadataValues("lavfi.signalstats.YMAX", in: result.output)
+        let ratios = lines(in: result.errorOutput).compactMap { line -> Double? in
+            guard line.contains("pblack:") else { return nil }
+            return value(after: "pblack:", in: line)
+        }
+
+        return SegmentEvidence(
+            meanLuma: averages.isEmpty ? nil : averages.reduce(0, +) / Double(averages.count),
+            peakLuma: peaks.max(),
+            minimumBlackRatio: ratios.min(),
+            threshold: Double(Self.blackPixelThreshold)
+        )
+    }
+
+    /// `metadata=print` emits `key=value` lines interleaved with `frame:` headers.
+    private func metadataValues(_ key: String, in text: String) -> [Double] {
+        lines(in: text).compactMap { line in
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            guard trimmed.hasPrefix("\(key)=") else { return nil }
+            return Double(trimmed.dropFirst(key.count + 1))
+        }
     }
 
     private func measure(
@@ -485,6 +564,49 @@ private struct CutPointCluster: Sendable {
 private struct TimedSegment: Sendable {
     let start: Double
     let duration: Double
+}
+
+/// The numbers behind "this is black" / "this is only dark", and the verdict
+/// they produce. Nothing is thrown away: a consumer that disagrees with the
+/// thresholds can reach the measurements and decide for itself.
+private struct SegmentEvidence: Sendable {
+    let meanLuma: Double?
+    let peakLuma: Double?
+    /// The LOWEST per-frame percentage of pixels below the threshold. The
+    /// minimum, not the average: one frame with picture in it is enough to
+    /// mean the segment is not uniformly black.
+    let minimumBlackRatio: Double?
+    let threshold: Double
+
+    var classification: QualityCheckSegmentClass {
+        // Measured nothing - keep the detector's own answer rather than
+        // inventing a softer one from missing data.
+        guard let peakLuma, let minimumBlackRatio else { return .fullBlack }
+        let uniform = minimumBlackRatio >= QualityCheckAnalyzer.fullBlackPixelRatio
+        let lightless = peakLuma <= QualityCheckAnalyzer.fullBlackPeakLuma
+        return uniform && lightless ? .fullBlack : .dark
+    }
+
+    var measurements: [String: Double] {
+        var values = ["black_pixel_threshold": threshold]
+        if let meanLuma { values["mean_luma"] = (meanLuma * 100).rounded() / 100 }
+        if let peakLuma { values["max_luma"] = (peakLuma * 100).rounded() / 100 }
+        if let minimumBlackRatio { values["black_pixel_percent"] = minimumBlackRatio }
+        return values
+    }
+
+    var summary: String {
+        var parts = ["threshold \(Int(threshold))/255"]
+        if let minimumBlackRatio {
+            parts.append("at least \(Int(minimumBlackRatio))% of pixels below it")
+        }
+        if let meanLuma { parts.append(String(format: "mean luma %.1f", meanLuma)) }
+        if let peakLuma { parts.append(String(format: "peak luma %.1f", peakLuma)) }
+        if classification == .dark {
+            parts.append("brighter than a black frame — visible detail")
+        }
+        return parts.joined(separator: ", ")
+    }
 }
 
 private struct ProcessResult: Sendable {
