@@ -159,6 +159,10 @@ struct CLIQualityCheckCommand {
         ]
         payload.setIfPresent("duration_seconds", finding.durationSeconds)
         payload.setIfPresent("details", finding.details)
+        payload.setIfPresent("classification", finding.classification?.rawValue)
+        if !finding.measurements.isEmpty {
+            payload["measurements"] = finding.measurements
+        }
         return payload
     }
 
