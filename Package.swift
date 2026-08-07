@@ -21,7 +21,6 @@ let package = Package(
                 "SECURITY.md",
                 "build.sh",
                 "Config",
-                "Tests",
                 "docs",
                 "script",
                 "AssetFox.xcodeproj",
@@ -78,6 +77,29 @@ let package = Package(
             ],
             resources: [
                 .copy("AssetFox/Vendor/MediaInfoLib/libmediainfo.0.dylib")
+            ],
+            swiftSettings: [
+                .swiftLanguageMode(.v5)
+            ]
+        ),
+        // Test RUNNER, not a testTarget: this machine builds with plain
+        // Command Line Tools (see the header), which ship neither XCTest nor
+        // swift-testing, so `swift test` cannot compile a test bundle here.
+        // The @main runner exits non-zero on the first failed assertion;
+        // run it with `swift run assetfox-tests` (build.sh does).
+        //
+        // The parser under test is app-target code the CLI deliberately
+        // excludes, so this target compiles it directly through the symlinks
+        // in Tests/Compiled (plus the contracts file it needs); the test
+        // file carries the one-struct CollectReportRow shim the parser
+        // expects from the app's collector.
+        .executableTarget(
+            name: "assetfox-tests",
+            path: "Tests",
+            sources: [
+                "CollectMediaXMLParserSecurityTests.swift",
+                "Compiled/CollectMediaXMLParser.swift",
+                "Compiled/CollectMediaContracts.swift"
             ],
             swiftSettings: [
                 .swiftLanguageMode(.v5)

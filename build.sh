@@ -44,6 +44,11 @@ if [ "$(xcode-select -p 2>/dev/null || true)" = "/Library/Developer/CommandLineT
 fi
 echo ""
 
+echo "→ Running parser security tests..."
+bash "$SCRIPT_DIR/script/test_collect_media_xml_parser.sh"
+echo "✓ Tests passed"
+echo ""
+
 if [ -d "$APP_PATH" ]; then
   echo "→ Removing previous build..."
   rm -rf "$APP_PATH"
