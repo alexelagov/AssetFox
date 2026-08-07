@@ -77,11 +77,23 @@ The app bundle is ad-hoc signed before zipping. For transfer to another Mac, cop
 
 ## Verification
 
-Run the Collect Media parser security test:
+Run the Collect Media parser security test — as a package target (the same
+sources, reached through the symlinks in `Tests/Compiled/`):
+
+```bash
+swift run assetfox-tests
+```
+
+or standalone via bare `swiftc` (no SwiftPM):
 
 ```bash
 script/test_collect_media_xml_parser.sh
 ```
+
+`build.sh` runs the tests before packaging, so a red parser cannot ship.
+The runner is an executable, not a `testTarget`, on purpose: this machine
+builds with plain Command Line Tools, which ship neither XCTest nor
+swift-testing, so `swift test` cannot compile a test bundle here.
 
 See [docs/SMOKE_TEST.md](docs/SMOKE_TEST.md) for the full launch and feature checklist.
 

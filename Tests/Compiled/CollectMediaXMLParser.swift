@@ -1,0 +1,1 @@
+../../AssetFox/Sources/CollectMedia/Services/CollectMediaXMLParser.swift
