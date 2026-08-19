@@ -20,6 +20,10 @@ struct MediaInfoGeneralMetadata: Sendable {
     var taggedDate: String?
     var writingApplication: String?
     var writingLibrary: String?
+    // "Yes" when the container is web-optimized (MP4 moov atom before the
+    // media data - "faststart"); MediaInfo leaves it unset where the
+    // question does not apply.
+    var isStreamable: String? = nil
 }
 
 struct MediaInfoVideoTrackMetadata: Identifiable, Sendable {
@@ -56,6 +60,12 @@ struct MediaInfoVideoTrackMetadata: Identifiable, Sendable {
     var colorPrimaries: String?
     var matrixCoefficients: String?
     var gamma: String?
+    // Encoding settings the delivery checker reads: CABAC on/off, reference
+    // frame count, and the GOP structure ("M=4, N=24"). Raw MediaInfo
+    // spellings — the consumer decides what they mean.
+    var formatSettingsCABAC: String? = nil
+    var formatSettingsRefFrames: String? = nil
+    var formatSettingsGOP: String? = nil
 
     var resolutionLabel: String? {
         guard let width, let height, width > 0, height > 0 else { return nil }

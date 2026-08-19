@@ -2,7 +2,7 @@ import Foundation
 
 enum CLIOutput {
     static let schemaVersion = "assetfox.cli/v1"
-    static let cliVersion = "0.1.0"
+    static let cliVersion = "0.2.0"
 
     static func envelope(command: String, payload: [String: Any]) -> [String: Any] {
         var body: [String: Any] = [
