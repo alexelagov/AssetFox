@@ -114,6 +114,10 @@ struct CLIPassportEncoder {
         payload.setIfPresent("tagged_date", general.taggedDate)
         payload.setIfPresent("writing_application", general.writingApplication)
         payload.setIfPresent("writing_library", general.writingLibrary)
+        // "The moov atom sits before the media data" as a boolean - what
+        // web_streaming checks. Absent where the container has no such
+        // concept, and that absence is the honest answer.
+        payload.setIfPresent("is_streamable", yesNo(general.isStreamable))
         return payload
     }
 
@@ -147,7 +151,28 @@ struct CLIPassportEncoder {
         payload.setIfPresent("color_primaries", track.colorPrimaries)
         payload.setIfPresent("matrix_coefficients", track.matrixCoefficients)
         payload.setIfPresent("gamma", track.gamma)
+        // Encoding settings for the delivery checker's machine rules:
+        // booleans and numbers rather than MediaInfo's display strings, so
+        // the consumer never string-matches "Yes".
+        payload.setIfPresent("format_settings_cabac", yesNo(track.formatSettingsCABAC))
+        payload.setIfPresent("format_settings_ref_frames", wholeNumber(track.formatSettingsRefFrames))
+        payload.setIfPresent("format_settings_gop", track.formatSettingsGOP)
         return payload
+    }
+
+    /// MediaInfo answers set questions with "Yes"/"No" strings; the passport
+    /// speaks JSON, where that fact is a boolean.
+    private func yesNo(_ value: String?) -> Bool? {
+        switch value?.lowercased() {
+        case "yes": return true
+        case "no": return false
+        default: return nil
+        }
+    }
+
+    private func wholeNumber(_ value: String?) -> Int? {
+        guard let value else { return nil }
+        return Int(value.components(separatedBy: CharacterSet.decimalDigits.inverted).joined())
     }
 
     private func audioTrack(from track: MediaInfoAudioTrackMetadata) -> [String: Any] {

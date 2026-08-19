@@ -67,7 +67,8 @@ struct MediaInfoLibService {
             encodedDate: stringValue(in: generalTrack, keys: ["Encoded_Date", "Encoded date"]),
             taggedDate: stringValue(in: generalTrack, keys: ["Tagged_Date", "Tagged date"]),
             writingApplication: stringValue(in: generalTrack, keys: ["Encoded_Application_String", "Encoded_Application", "EncodedApplication", "Encoded application", "WritingApplication", "Writing application"]),
-            writingLibrary: stringValue(in: generalTrack, keys: ["Encoded_Library_String", "Encoded_Library", "EncodedLibrary", "Encoded library", "WritingLibrary", "Writing library"])
+            writingLibrary: stringValue(in: generalTrack, keys: ["Encoded_Library_String", "Encoded_Library", "EncodedLibrary", "Encoded library", "WritingLibrary", "Writing library"]),
+            isStreamable: stringValue(in: generalTrack, keys: ["IsStreamable"])
         )
 
         return MediaInfoDeepMetadataResult(
@@ -113,7 +114,12 @@ struct MediaInfoLibService {
             pixelFormat: stringValue(in: track, keys: ["PixelFormat", "PixelFormat/String"]),
             colorPrimaries: stringValue(in: track, keys: ["colour_primaries", "ColorPrimaries", "Color primaries"]),
             matrixCoefficients: stringValue(in: track, keys: ["matrix_coefficients", "MatrixCoefficients", "Matrix coefficients"]),
-            gamma: stringValue(in: track, keys: ["Gamma"])
+            gamma: stringValue(in: track, keys: ["Gamma"]),
+            // The raw keys, not the _String variants: "Yes"/"No" and
+            // "M=4, N=24" are the machine-readable spellings.
+            formatSettingsCABAC: stringValue(in: track, keys: ["Format_Settings_CABAC"]),
+            formatSettingsRefFrames: stringValue(in: track, keys: ["Format_Settings_RefFrames"]),
+            formatSettingsGOP: stringValue(in: track, keys: ["Format_Settings_GOP"])
         )
     }
 

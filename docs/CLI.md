@@ -55,6 +55,14 @@ layers with different trust levels:
 | `summary` | merged MediaInfoLib -> AVFoundation -> ImageIO -> ffprobe | display strings; `metadata_source` names the winning chain |
 | `media_info` | MediaInfoLib complete dump (when the dylib loads) | exact codec/profile matching: `general`, `video_tracks[]`, `audio_tracks[]` |
 
+Since 0.2.0 the `media_info` payload also carries the encoding settings the
+delivery checker's machine rules read, as machine types rather than display
+strings: `general.is_streamable` (bool - MP4 `moov` atom before the media
+data, i.e. "faststart"), and per video track `format_settings_cabac` (bool),
+`format_settings_ref_frames` (int), `format_settings_gop` (raw MediaInfo
+spelling, e.g. `"M=4, N=24"`). Every field is omitted where MediaInfo does
+not answer - absence means "could not verify", never "no".
+
 Unreadable inputs produce `{path, file_name, error}` instead. Per-file
 `warnings[]`/`errors[]` surface degraded metadata sources.
 
