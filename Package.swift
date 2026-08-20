@@ -62,6 +62,7 @@ let package = Package(
                 "AssetFox/Sources/MediaInfo/MediaInfoModels.swift",
                 "AssetFox/Sources/MediaInfo/MediaInfoLibService.swift",
                 "AssetFox/Sources/MediaInfo/MediaInfoInspector.swift",
+                "AssetFox/Sources/MediaInfo/PixelFormatBitDepth.swift",
                 "AssetFox/Sources/CollectMedia/Services/FFProbeAdapter.swift",
                 "AssetFox/Sources/QualityCheck/Models/QualityCheckModels.swift",
                 "AssetFox/Sources/QualityCheck/Services/QualityCheckAnalyzer.swift",
@@ -98,8 +99,10 @@ let package = Package(
             path: "Tests",
             sources: [
                 "CollectMediaXMLParserSecurityTests.swift",
+                "PixelFormatBitDepthTests.swift",
                 "Compiled/CollectMediaXMLParser.swift",
-                "Compiled/CollectMediaContracts.swift"
+                "Compiled/CollectMediaContracts.swift",
+                "Compiled/PixelFormatBitDepth.swift"
             ],
             swiftSettings: [
                 .swiftLanguageMode(.v5)

@@ -39,6 +39,10 @@ struct CLIPassportEncoder {
             passport["media_info"] = mediaInfo(from: deep)
         }
 
+        if let ffprobe = ffprobe(from: inspection) {
+            passport["ffprobe"] = ffprobe
+        }
+
         let warnings = loaderWarnings + inspection.warnings + (inspection.deepMetadata?.warnings ?? [])
         if !warnings.isEmpty {
             passport["warnings"] = warnings
@@ -86,6 +90,25 @@ struct CLIPassportEncoder {
         summary.setIfPresent("video_track_count", inspection.videoTrackCount)
         summary.setIfPresent("audio_track_count", inspection.audioTrackCount)
         return summary
+    }
+
+    // Fourth layer: ffprobe's own measurement of the primary video stream.
+    // MediaInfo does not report bit depth for ProRes QuickTime files, and
+    // the AVFoundation depth is bits per pixel, so pix_fmt is the one
+    // measured per-channel source left; the derived value names where it
+    // came from so the consumer can weigh it. Absent entirely when ffprobe
+    // was unavailable or gave no pixel format - absence stays "could not
+    // verify", never a default.
+    private func ffprobe(from inspection: MediaInfoInspectionResult) -> [String: Any]? {
+        guard let pixelFormat = inspection.ffprobePixelFormat else {
+            return nil
+        }
+        var payload: [String: Any] = ["pix_fmt": pixelFormat]
+        if let bits = PixelFormatBitDepth.bitsPerChannel(fromPixelFormat: pixelFormat) {
+            payload["video_bit_depth"] = bits
+            payload["video_bit_depth_source"] = "pix_fmt"
+        }
+        return payload
     }
 
     private func mediaInfo(from deep: MediaInfoDeepMetadataResult) -> [String: Any] {

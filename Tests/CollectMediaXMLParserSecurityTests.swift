@@ -14,6 +14,9 @@ struct CollectMediaXMLParserSecurityTests {
         try testSupportedFCPXMLPathURLsAreCollected()
         try testLocalhostAndPercentEncodedPathURLsAreNormalizedBeforeValidation()
         print("CollectMediaXMLParserSecurityTests passed")
+        // This @main doubles as the package's whole test entry point (the
+        // header comment in Package.swift says why there is no testTarget).
+        PixelFormatBitDepthTests.run()
     }
 
     private static func testUnsupportedFCPXMLPathURLsAreSkipped() throws {
