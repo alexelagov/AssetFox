@@ -1,0 +1,1 @@
+../../AssetFox/Sources/MediaInfo/PixelFormatBitDepth.swift

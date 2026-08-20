@@ -54,6 +54,7 @@ layers with different trust levels:
 | `av` | AVFoundation | numeric comparison: `duration_seconds`, `width`, `height`, `nominal_frame_rate` |
 | `summary` | merged MediaInfoLib -> AVFoundation -> ImageIO -> ffprobe | display strings; `metadata_source` names the winning chain |
 | `media_info` | MediaInfoLib complete dump (when the dylib loads) | exact codec/profile matching: `general`, `video_tracks[]`, `audio_tracks[]` |
+| `ffprobe` | ffprobe, primary video stream only | measured pixel format: `pix_fmt`, derived `video_bit_depth` |
 
 Since 0.2.0 the `media_info` payload also carries the encoding settings the
 delivery checker's machine rules read, as machine types rather than display
@@ -62,6 +63,18 @@ data, i.e. "faststart"), and per video track `format_settings_cabac` (bool),
 `format_settings_ref_frames` (int), `format_settings_gop` (raw MediaInfo
 spelling, e.g. `"M=4, N=24"`). Every field is omitted where MediaInfo does
 not answer - absence means "could not verify", never "no".
+
+The `ffprobe` layer exists because MediaInfo does not report bit depth for
+ProRes QuickTime files, and the AVFoundation depth in `summary` is bits per
+pixel (24 for 8-bit), which no bit-depth rule may trust. `pix_fmt` is
+ffprobe's decoded pixel format verbatim; `video_bit_depth` (int, bits per
+channel) is derived from the depth token in that name (`yuv422p10le` -> 10,
+`yuv420p` -> 8), and `video_bit_depth_source` names the derivation
+(`"pix_fmt"`). The derivation only reads name families where the trailing
+token really is a per-channel depth (planar YUV/RGB, grayscale); packed
+formats like `nv12` or `rgb24` yield no `video_bit_depth` at all. The whole
+layer is omitted when ffprobe is unavailable or reported no pixel format -
+as everywhere in the passport, absence means "could not verify".
 
 Unreadable inputs produce `{path, file_name, error}` instead. Per-file
 `warnings[]`/`errors[]` surface degraded metadata sources.

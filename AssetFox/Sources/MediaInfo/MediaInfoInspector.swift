@@ -31,6 +31,11 @@ struct MediaInfoInspectionResult: Sendable {
     var audioTrackCount: Int?
     var metadataSource: String
     var warnings: [String]
+    // ffprobe's pix_fmt verbatim, kept apart from the display-merged
+    // pixelFormat above: the passport's ffprobe layer must only ever carry
+    // values ffprobe itself measured, whatever the display cascade chose.
+    // Defaulted so the display-path constructors stay untouched.
+    var ffprobePixelFormat: String? = nil
 }
 
 struct MediaInfoInspector {
@@ -361,6 +366,10 @@ struct MediaInfoInspector {
 
         var merged = native
         var contributedFFProbeData = false
+
+        // A measurement, not a display fallback: recorded whenever ffprobe
+        // answered, even when every display field below was already filled.
+        merged.ffprobePixelFormat = probe.pixelFormat
 
         if merged.rawFamily == nil, let value = probe.rawFamily ?? rawFamily {
             merged.rawFamily = value
