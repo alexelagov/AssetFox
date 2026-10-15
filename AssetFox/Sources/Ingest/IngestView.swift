@@ -610,6 +610,11 @@ struct IngestView: View {
     }
 
     private func summaryTitle(for result: IngestCopyResult) -> String {
+        // A run with verification switched off verified nothing, and saying
+        // "verified" there is the one claim this screen must never make.
+        guard viewModel.verificationEnabledForRun else {
+            return "Ingest completed. \(result.copiedFiles) of \(result.totalFiles) files were copied. SHA-256 verification was off for this run."
+        }
         if result.mismatchCount == 0 && result.verificationFailureCount == 0 {
             return "Ingest completed. \(result.copiedFiles) of \(result.totalFiles) files were copied and verified."
         }
@@ -619,7 +624,9 @@ struct IngestView: View {
     private var statusBannerText: String {
         switch viewModel.jobStatus {
         case .success:
-            return "Success. All copied files completed SHA-256 verification."
+            return viewModel.verificationEnabledForRun
+                ? "Success. All copied files completed SHA-256 verification."
+                : "Copied. SHA-256 verification was off for this run, so nothing was checked against the source."
         case .successWithWarnings:
             return summaryTitle(for: viewModel.copyResult!)
         case .failed:
@@ -634,7 +641,8 @@ struct IngestView: View {
     private var statusBannerIcon: String {
         switch viewModel.jobStatus {
         case .success:
-            return "checkmark.seal.fill"
+            // The seal means "checked"; an unverified copy is only done.
+            return viewModel.verificationEnabledForRun ? "checkmark.seal.fill" : "checkmark.circle"
         case .successWithWarnings:
             return "exclamationmark.triangle.fill"
         case .failed:
