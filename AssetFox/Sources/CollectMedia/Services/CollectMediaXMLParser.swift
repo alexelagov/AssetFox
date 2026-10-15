@@ -153,6 +153,16 @@ struct CollectMediaXMLParser {
 }
 
 struct CollectMediaPremiereProjectParser {
+    /// Ceiling on the project XML this parser will hold in memory, applied to
+    /// the file as read and, for a gzipped .prproj, to the decompressed bytes
+    /// as they arrive. A few kilobytes of gzip can inflate to gigabytes, and
+    /// the XMLDocument built afterwards costs several times its input again,
+    /// so the decompressed size has to be bounded before it is buffered, not
+    /// after. The default sits well above real Premiere projects.
+    static let defaultMaximumXMLBytes = 512 * 1024 * 1024
+
+    var maximumXMLBytes: Int = CollectMediaPremiereProjectParser.defaultMaximumXMLBytes
+
     func parse(projectURL: URL) throws -> ParsedCollectMediaDocument {
         let data = try projectXMLData(from: projectURL)
         let document = try XMLDocument(data: data, options: [])
@@ -198,8 +208,18 @@ struct CollectMediaPremiereProjectParser {
     }
 
     private func projectXMLData(from projectURL: URL) throws -> Data {
+        // Checked before reading: a file over the ceiling is rejected whether
+        // it is plain XML or gzip (whose output is bounded again below).
+        let fileSize = try projectURL.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0
+        guard fileSize <= maximumXMLBytes else {
+            throw PremiereProjectParserError.projectTooLarge(limitBytes: maximumXMLBytes)
+        }
+
         let data = try Data(contentsOf: projectURL)
         guard data.starts(with: [0x1f, 0x8b]) else {
+            guard data.count <= maximumXMLBytes else {
+                throw PremiereProjectParserError.projectTooLarge(limitBytes: maximumXMLBytes)
+            }
             return data
         }
         return try gunzippedData(from: projectURL)
@@ -221,6 +241,9 @@ struct CollectMediaPremiereProjectParser {
             }
 
             if readCount > 0 {
+                guard Int(readCount) <= maximumXMLBytes - output.count else {
+                    throw PremiereProjectParserError.projectTooLarge(limitBytes: maximumXMLBytes)
+                }
                 output.append(contentsOf: buffer.prefix(Int(readCount)))
             } else if readCount == 0 {
                 break
@@ -370,13 +393,17 @@ private enum ParsedPremiereProjectPath {
     case none
 }
 
-private enum PremiereProjectParserError: LocalizedError {
+enum PremiereProjectParserError: LocalizedError, Equatable {
     case unreadableCompressedProject
+    case projectTooLarge(limitBytes: Int)
 
     var errorDescription: String? {
         switch self {
         case .unreadableCompressedProject:
             return "The Premiere project is compressed, but AssetFox could not read its XML payload."
+        case .projectTooLarge(let limitBytes):
+            let limit = ByteCountFormatter.string(fromByteCount: Int64(limitBytes), countStyle: .file)
+            return "The Premiere project's XML is larger than AssetFox will read (\(limit))."
         }
     }
 }
