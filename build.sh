@@ -6,21 +6,18 @@
 #   ~/Desktop/AssetFox.app
 #   ~/Desktop/AssetFox-macos.zip
 #
-# This script does not depend on xcodebuild, which is useful in
-# environments where only Command Line Tools are installed.
+# Builds through AssetFox.xcodeproj, so it needs full Xcode 16+
+# (found automatically in /Applications even when xcode-select
+# points at Command Line Tools).
 # =============================================================
 
 set -euo pipefail
 
 APP_NAME="AssetFox"
-DISPLAY_NAME="AssetFox"
-BUNDLE_ID="com.postprod.assetfox"
-MIN_MACOS="15.0"
 DESKTOP="$HOME/Desktop"
 APP_PATH="$DESKTOP/$APP_NAME.app"
 ZIP_PATH="$DESKTOP/${APP_NAME}-macos.zip"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-SRC_DIR="$SCRIPT_DIR/AssetFox/Sources"
 
 echo ""
 echo "╔══════════════════════════════════════╗"
@@ -28,20 +25,28 @@ echo "║        AssetFox — build .app         ║"
 echo "╚══════════════════════════════════════╝"
 echo ""
 
-if ! command -v swiftc >/dev/null 2>&1; then
-  echo "✗ Swift compiler not found."
-  echo "  Install Xcode Command Line Tools: xcode-select --install"
-  exit 1
+# The app target needs things a bare swiftc call never had: the
+# MediaInfoLib bridge (an Objective-C++ file behind a bridging header), the
+# embedded libmediainfo.dylib with its install name rewritten, and the
+# SwiftUI macro plugins (@State and friends) that ship only with full Xcode.
+# The Xcode project already does all three, so this script builds through it
+# rather than keeping a second, drifting copy of the recipe. It used to: the
+# swiftc version stopped compiling the day the MediaInfoLib bridge landed.
+if ! xcodebuild -version >/dev/null 2>&1; then
+  if [ -d /Applications/Xcode.app ]; then
+    # xcode-select points at Command Line Tools, but Xcode is installed.
+    export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer
+  else
+    echo "✗ Full Xcode not found."
+    echo "  AssetFox's SwiftUI macros and MediaInfoLib bridge need Xcode 16+;"
+    echo "  Command Line Tools alone cannot build the app."
+    exit 1
+  fi
 fi
 
-SWIFT_VER=$(swiftc --version 2>&1 | head -1)
-echo "✓ Swift: $SWIFT_VER"
-echo "✓ Build strategy: direct swiftc packaging"
-if [ "$(xcode-select -p 2>/dev/null || true)" = "/Library/Developer/CommandLineTools" ]; then
-  echo "⚠ Full Xcode is not installed on this machine."
-  echo "  If the SDK/toolchain mismatch appears, run this script on a Mac with Xcode 16+"
-  echo "  or set DEVELOPER_DIR to a matching Xcode installation."
-fi
+XCODE_VER=$(xcodebuild -version 2>&1 | head -1)
+echo "✓ $XCODE_VER"
+echo "✓ Build strategy: xcodebuild (AssetFox.xcodeproj, Release, universal)"
 echo ""
 
 echo "→ Running parser security tests..."
@@ -49,81 +54,29 @@ bash "$SCRIPT_DIR/script/test_collect_media_xml_parser.sh"
 echo "✓ Tests passed"
 echo ""
 
+DERIVED_DATA="$(mktemp -d "${TMPDIR:-/tmp}/assetfox-build.XXXXXX")"
+trap 'rm -rf "$DERIVED_DATA"' EXIT
+
+echo "→ Compiling universal binary..."
+xcodebuild \
+  -project "$SCRIPT_DIR/AssetFox.xcodeproj" \
+  -scheme AssetFox \
+  -configuration Release \
+  -destination 'generic/platform=macOS' \
+  -derivedDataPath "$DERIVED_DATA" \
+  CODE_SIGNING_ALLOWED=NO \
+  -quiet \
+  build
+echo "✓ Compilation successful"
+
 if [ -d "$APP_PATH" ]; then
   echo "→ Removing previous build..."
   rm -rf "$APP_PATH"
 fi
-
 rm -f "$ZIP_PATH"
 
-echo "→ Creating app bundle..."
-CONTENTS="$APP_PATH/Contents"
-MACOS="$CONTENTS/MacOS"
-RESOURCES="$CONTENTS/Resources"
-mkdir -p "$MACOS" "$RESOURCES"
-
-cat > "$CONTENTS/Info.plist" <<PLIST
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>CFBundleExecutable</key>
-    <string>$APP_NAME</string>
-    <key>CFBundleIdentifier</key>
-    <string>$BUNDLE_ID</string>
-    <key>CFBundleName</key>
-    <string>$APP_NAME</string>
-    <key>CFBundleDisplayName</key>
-    <string>$DISPLAY_NAME</string>
-    <key>CFBundlePackageType</key>
-    <string>APPL</string>
-    <key>CFBundleShortVersionString</key>
-    <string>1.0</string>
-    <key>CFBundleVersion</key>
-    <string>1</string>
-    <key>LSMinimumSystemVersion</key>
-    <string>$MIN_MACOS</string>
-    <key>NSHighResolutionCapable</key>
-    <true/>
-    <key>NSPrincipalClass</key>
-    <string>NSApplication</string>
-    <key>NSHumanReadableCopyright</key>
-    <string>Post-production toolkit</string>
-</dict>
-</plist>
-PLIST
-
-echo "✓ Info.plist written"
-
-SOURCE_FILES=()
-while IFS= read -r file; do
-  SOURCE_FILES+=("$file")
-done < <(find "$SRC_DIR" -name '*.swift' -print | sort)
-
-if [ "${#SOURCE_FILES[@]}" -eq 0 ]; then
-  echo "✗ No Swift sources found under $SRC_DIR"
-  exit 1
-fi
-
-echo "✓ Found ${#SOURCE_FILES[@]} Swift sources"
-echo "→ Compiling universal binary..."
-
-SDK="$(xcrun --show-sdk-path)"
-FRAMEWORKS=(-framework SwiftUI -framework AppKit -framework Foundation -framework CryptoKit -framework UniformTypeIdentifiers)
-
-swiftc "${SOURCE_FILES[@]}" -o "$MACOS/${APP_NAME}_arm64" \
-  -sdk "$SDK" "${FRAMEWORKS[@]}" -parse-as-library -O \
-  -target arm64-apple-macos15.0
-
-swiftc "${SOURCE_FILES[@]}" -o "$MACOS/${APP_NAME}_x86_64" \
-  -sdk "$SDK" "${FRAMEWORKS[@]}" -parse-as-library -O \
-  -target x86_64-apple-macos15.0
-
-lipo -create -output "$MACOS/$APP_NAME" \
-  "$MACOS/${APP_NAME}_arm64" "$MACOS/${APP_NAME}_x86_64"
-rm "$MACOS/${APP_NAME}_arm64" "$MACOS/${APP_NAME}_x86_64"
-
-echo "✓ Compilation successful"
+ditto "$DERIVED_DATA/Build/Products/Release/$APP_NAME.app" "$APP_PATH"
+echo "✓ App bundle copied to $APP_PATH"
 
 echo "→ Applying ad-hoc signature..."
 if codesign --force --deep --sign - "$APP_PATH" >/dev/null 2>&1; then
