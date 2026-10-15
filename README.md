@@ -34,13 +34,13 @@ This repository is prepared for public visibility with telemetry secrets and rel
 
 ## Build And Transfer
 
-For quick local packaging on machines without a full Xcode release setup:
+For quick local packaging (needs full Xcode 16+; it builds through `AssetFox.xcodeproj` and finds `/Applications/Xcode.app` even when `xcode-select` points at Command Line Tools):
 
 ```bash
 bash build.sh
 ```
 
-The legacy package script creates:
+The package script creates:
 
 - `~/Desktop/AssetFox.app`
 - `~/Desktop/AssetFox-macos.zip`
