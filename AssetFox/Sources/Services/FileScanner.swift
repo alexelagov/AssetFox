@@ -14,6 +14,16 @@ let chunkSize = 8 * 1024 * 1024       // 8 MB
 
 // MARK: - Scanner
 
+/// Some files of a quarantine request were moved before one failed.
+struct QuarantinePartialFailure: LocalizedError {
+    let moved: [QuarantineEntry]
+    let underlying: Error
+
+    var errorDescription: String? {
+        "Moved \(moved.count) file\(moved.count == 1 ? "" : "s") to quarantine, then stopped: \(underlying.localizedDescription)"
+    }
+}
+
 actor FileScanner {
 
     // MARK: Scan
@@ -185,14 +195,16 @@ actor FileScanner {
         var entries: [QuarantineEntry] = []
 
         for file in files {
-            var dest = quarantineURL.appendingPathComponent(file.name)
-            if fm.fileExists(atPath: dest.path) {
-                let stem = file.url.deletingPathExtension().lastPathComponent
-                let ext = file.url.pathExtension
-                let parent = file.url.deletingLastPathComponent().lastPathComponent
-                dest = quarantineURL.appendingPathComponent("\(stem)__\(parent).\(ext)")
+            let dest = uniqueQuarantineURL(for: file, in: quarantineURL)
+            do {
+                try fm.moveItem(at: file.url, to: dest)
+            } catch {
+                // Files already moved stay moved: say so, rather than leave the
+                // caller's groups and quarantine log describing files that are
+                // no longer where they were.
+                if entries.isEmpty { throw error }
+                throw QuarantinePartialFailure(moved: entries, underlying: error)
             }
-            try fm.moveItem(at: file.url, to: dest)
             entries.append(QuarantineEntry(
                 originalPath: file.path,
                 quarantinePath: dest.path,
@@ -201,6 +213,26 @@ actor FileScanner {
             ))
         }
         return entries
+    }
+
+    /// name.ext, then name__parent.ext, then name__parent_2.ext, … until free.
+    /// Only the first two used to be tried, so a third duplicate from another
+    /// folder of the same name stopped the whole group half way through.
+    private func uniqueQuarantineURL(for file: ScannedFile, in quarantineURL: URL) -> URL {
+        let fm = FileManager.default
+        let first = quarantineURL.appendingPathComponent(file.name)
+        if !fm.fileExists(atPath: first.path) { return first }
+
+        let stem = file.url.deletingPathExtension().lastPathComponent
+        let ext = file.url.pathExtension
+        let parent = file.url.deletingLastPathComponent().lastPathComponent
+        var index = 1
+        while true {
+            let base = index == 1 ? "\(stem)__\(parent)" : "\(stem)__\(parent)_\(index)"
+            let candidate = quarantineURL.appendingPathComponent(ext.isEmpty ? base : "\(base).\(ext)")
+            if !fm.fileExists(atPath: candidate.path) { return candidate }
+            index += 1
+        }
     }
 
     // MARK: - Trash

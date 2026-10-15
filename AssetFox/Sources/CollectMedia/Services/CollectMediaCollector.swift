@@ -489,7 +489,7 @@ struct CollectMediaCollector {
                 }
                 return (candidate, notes)
             }
-            if options.skipDuplicates, sameFileMetadata(sourceURL, candidate) {
+            if options.skipDuplicates, isSameFile(sourceURL, candidate) {
                 if tailCount != initialTailCount {
                     notes = ["preserve_tail_n=\(tailCount)", "tail_n_auto_bumped:\(initialTailCount)->\(tailCount)"]
                 }
@@ -510,6 +510,46 @@ struct CollectMediaCollector {
         let components = sourceURL.deletingLastPathComponent().pathComponents.filter { $0 != "/" }
         let kept = components.suffix(max(1, tailCount))
         return (Array(kept) + [sourceURL.lastPathComponent]).joined(separator: "/")
+    }
+
+    /// Skip duplicates means "this exact file is already there". Size and a
+    /// whole-second modification date were taken as proof of that, so two
+    /// different rushes of equal size and date (camera cards, renders) were
+    /// silently skipped and the package went out without one. The metadata
+    /// stays as the cheap first filter; the bytes decide.
+    private func isSameFile(_ lhs: URL, _ rhs: URL) -> Bool {
+        sameFileMetadata(lhs, rhs) && sameFileContent(lhs, rhs)
+    }
+
+    private func sameFileContent(_ lhs: URL, _ rhs: URL) -> Bool {
+        guard
+            let lhsHandle = FileHandle(forReadingAtPath: lhs.path),
+            let rhsHandle = FileHandle(forReadingAtPath: rhs.path)
+        else {
+            return false
+        }
+        defer {
+            try? lhsHandle.close()
+            try? rhsHandle.close()
+        }
+
+        let chunkSize = 4 * 1024 * 1024
+        while true {
+            let same: Bool? = autoreleasepool {
+                // nil is end of file here, not an error: a read that throws is.
+                let lhsChunk: Data
+                let rhsChunk: Data
+                do {
+                    lhsChunk = try lhsHandle.read(upToCount: chunkSize) ?? Data()
+                    rhsChunk = try rhsHandle.read(upToCount: chunkSize) ?? Data()
+                } catch {
+                    return false
+                }
+                if lhsChunk != rhsChunk { return false }
+                return lhsChunk.isEmpty ? true : nil
+            }
+            if let same { return same }
+        }
     }
 
     private func sameFileMetadata(_ lhs: URL, _ rhs: URL) -> Bool {
@@ -541,7 +581,7 @@ struct CollectMediaCollector {
 
         var finalURL = destinationURL
         if manager.fileExists(atPath: finalURL.path) {
-            if options.skipDuplicates, sameFileMetadata(sourceURL, finalURL) {
+            if options.skipDuplicates, isSameFile(sourceURL, finalURL) {
                 return ("skipped", finalURL)
             }
             finalURL = uniqueDestinationURL(for: finalURL)
