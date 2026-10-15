@@ -133,8 +133,31 @@ struct QualityCheckAnalyzer: Sendable {
         let decimatedResult = await decimated
         let cutsResult = await cuts
         let rawOutput = outputs.map(\.combinedOutput).joined(separator: "\n\n")
+
+        var measurement = measure(
+            item: item,
+            boundsOutput: boundsResult,
+            decimatedOutput: decimatedResult,
+            cutsOutput: cutsResult
+        )
+        // Every pass's exit status counts. A file ffmpeg cannot open makes
+        // every filter print nothing, and "nothing found" is exactly what a
+        // clean file looks like - so a failed pass has to be said out loud.
+        let passes: [(String, ProcessResult)] = [
+            ("black", outputs[0]), ("freeze", outputs[1]), ("scene", outputs[2]),
+            ("bounds", boundsResult), ("decimate", decimatedResult), ("cuts", cutsResult)
+        ]
+        var failedPasses = passes.filter { $0.1.exitCode != 0 }.map(\.0)
+        if failedPasses.isEmpty, (measurement.measuredFrames ?? 0) == 0 {
+            failedPasses.append("decode")
+        }
+        measurement.failedPasses = failedPasses
+
         let blackSegments = parseBlackSegments(rawOutput)
-        let freezeSegments = parseFreezeSegments(rawOutput)
+        let freezeSegments = parseFreezeSegments(
+            outputs[1].combinedOutput,
+            fileEnd: measurement.measuredDurationSeconds ?? (item.durationSeconds > 0 ? item.durationSeconds : nil)
+        )
         let cutPoints = parseSceneCutPoints(rawOutput)
 
         var findings: [QualityCheckFinding] = []
@@ -170,12 +193,20 @@ struct QualityCheckAnalyzer: Sendable {
             )
         })
 
-        let measurement = measure(
-            item: item,
-            boundsOutput: boundsResult,
-            decimatedOutput: decimatedResult,
-            cutsOutput: cutsResult
-        )
+        if !failedPasses.isEmpty {
+            let failed = passes.filter { failedPasses.contains($0.0) }.map(\.1)
+            findings.append(
+                QualityCheckFinding(
+                    severity: .critical,
+                    kind: .runtime,
+                    fileName: item.name,
+                    timeSeconds: 0,
+                    message: "Quality check did not complete for this file",
+                    details: "Failed: \(failedPasses.joined(separator: ", ")). "
+                        + (Self.lastErrorLine(in: failed) ?? "ffmpeg decoded no frames.")
+                )
+            )
+        }
 
         return PerFileAnalysis(
             item: item,
@@ -316,7 +347,13 @@ struct QualityCheckAnalyzer: Sendable {
             frameRate: frameRate,
             toleranceFrames: matchingToleranceFrames
         )
-        let minimumParticipantCount = max(2, Int((Double(analyses.count) * 0.6).rounded(.up)))
+        // A reference plus one export has no majority to consult: the
+        // reference is the authority, so its cut alone is enough to ask the
+        // export for one. The old max(2, ...) floor made the two-file case -
+        // the ordinary one - unable to report anything.
+        let minimumParticipantCount = analyses.count == 2
+            ? 1
+            : max(2, Int((Double(analyses.count) * 0.6).rounded(.up)))
 
         for cluster in clusters where cluster.participantIDs.count >= minimumParticipantCount && cluster.hasStableTiming(frameTolerance: matchingToleranceFrames) {
             let participantIDs = cluster.participantIDs
@@ -452,7 +489,10 @@ struct QualityCheckAnalyzer: Sendable {
         }
     }
 
-    private func parseFreezeSegments(_ text: String) -> [TimedSegment] {
+    /// A freeze that runs to the end of the file gets a `freeze_start` and
+    /// no `freeze_end` - ffmpeg stops before it would print one - so it is
+    /// closed at `fileEnd`, the length the decoder actually played.
+    private func parseFreezeSegments(_ text: String, fileEnd: Double?) -> [TimedSegment] {
         var activeStart: Double?
         var segments: [TimedSegment] = []
 
@@ -467,6 +507,10 @@ struct QualityCheckAnalyzer: Sendable {
                 }
                 activeStart = nil
             }
+        }
+
+        if let start = activeStart, let fileEnd, fileEnd > start {
+            segments.append(TimedSegment(start: start, duration: fileEnd - start))
         }
 
         return segments
@@ -486,11 +530,27 @@ struct QualityCheckAnalyzer: Sendable {
 
     private func value(after token: String, in line: String) -> Double? {
         guard let tokenRange = line.range(of: token) else { return nil }
-        let suffix = line[tokenRange.upperBound...]
+        // freezedetect logs `freeze_start: 4.004` - with a space - while
+        // blackdetect logs `black_start:4.004`. Skipping the blanks is what
+        // lets one parser read both; without it every freeze came back nil.
+        let suffix = line[tokenRange.upperBound...].drop { $0 == " " || $0 == "\t" }
         let number = suffix.prefix { character in
             character.isNumber || character == "." || character == "-"
         }
         return Double(number)
+    }
+
+    /// The line a person would read first: ffmpeg's own last complaint.
+    private static func lastErrorLine(in results: [ProcessResult]) -> String? {
+        for result in results {
+            if let line = result.errorOutput
+                .split(whereSeparator: \.isNewline)
+                .map({ $0.trimmingCharacters(in: .whitespaces) })
+                .last(where: { !$0.isEmpty }) {
+                return line
+            }
+        }
+        return nil
     }
 
     private func severityRank(_ severity: QualityCheckSeverity) -> Int {

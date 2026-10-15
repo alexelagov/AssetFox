@@ -175,6 +175,11 @@ struct QualityCheckMeasurement: Sendable {
     /// Frames left after mpdecimate drops duplicates. Lower than
     /// measuredFrames when a lower-rate master was padded up.
     var uniqueFrames: Int?
+    /// ffmpeg passes that did not finish (non-zero exit), plus "decode" when
+    /// every pass exited cleanly yet no frame was decoded. Empty means the
+    /// absence of findings for this file is evidence; anything else means it
+    /// is not.
+    var failedPasses: [String] = []
 
     var contentAspect: Double? {
         guard let contentWidth, let contentHeight, contentWidth > 0, contentHeight > 0 else { return nil }
