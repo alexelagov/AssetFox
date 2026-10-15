@@ -126,7 +126,7 @@ actor TelemetryService {
     func flush() async {
         guard analyticsEnabled, !isFlushing, let endpoint = telemetryEndpointURL else { return }
 
-        var queue = loadQueue()
+        let queue = loadQueue()
         guard !queue.isEmpty else { return }
 
         isFlushing = true
@@ -150,8 +150,13 @@ actor TelemetryService {
 
             if let httpResponse = response as? HTTPURLResponse,
                (200..<300).contains(httpResponse.statusCode) {
-                queue.removeFirst(min(batch.count, queue.count))
-                saveQueue(queue)
+                // The actor is reentrant across the await above: track() may have
+                // appended to (or trimmed) the persisted queue meanwhile. Drop only
+                // the acknowledged events from the queue as it is now, never write
+                // the pre-await snapshot back. On failure nothing is written, so
+                // events queued during the attempt stay put.
+                let acknowledgedIDs = Set(batch.map(\.id))
+                saveQueue(loadQueue().filter { !acknowledgedIDs.contains($0.id) })
             }
         } catch {
             logger.debug("Telemetry delivery failed: \(error.localizedDescription, privacy: .public)")
