@@ -622,7 +622,11 @@ private struct ProcessResult: Sendable {
 /// Drains one pipe on its own thread so a chatty ffmpeg filter can never
 /// block on a full buffer. `finish()` joins the reader after the process
 /// exits, at which point the handle is at EOF and `text` is complete.
-private final class ByteSink: @unchecked Sendable {
+/// Drains one pipe on a background queue while the child runs. Shared with
+/// the ffprobe callers (MediaInfoInspector, FFProbeAdapter): any child whose
+/// output can outgrow the 64K pipe buffer needs it, or it blocks on write
+/// while we block on wait.
+final class ByteSink: @unchecked Sendable {
     private let lock = NSLock()
     private var data = Data()
     private let reachedEOF = DispatchSemaphore(value: 0)
@@ -650,6 +654,12 @@ private final class ByteSink: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         return String(data: data, encoding: .utf8) ?? ""
+    }
+
+    var bytes: Data {
+        lock.lock()
+        defer { lock.unlock() }
+        return data
     }
 }
 

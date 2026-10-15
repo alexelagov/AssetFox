@@ -31,21 +31,33 @@ struct FFProbeAdapter: Sendable {
         ]
 
         let outputPipe = Pipe()
+        let errorPipe = Pipe()
         process.standardOutput = outputPipe
-        process.standardError = Pipe()
+        process.standardError = errorPipe
 
+        // Drained while ffprobe runs: -show_streams on an MXF with many tracks
+        // is well past the 64K pipe buffer, and waiting for exit first left
+        // ffprobe blocked on write and this call blocked on wait, for good.
+        let outSink = ByteSink(outputPipe.fileHandleForReading)
+        let errSink = ByteSink(errorPipe.fileHandleForReading)
         do {
             try process.run()
             process.waitUntilExit()
         } catch {
+            try? outputPipe.fileHandleForWriting.close()
+            try? errorPipe.fileHandleForWriting.close()
+            outSink.finish()
+            errSink.finish()
             return FFProbeMetadata(durationSeconds: nil, timecodeStart: nil)
         }
+        outSink.finish()
+        errSink.finish()
 
         guard process.terminationStatus == 0 else {
             return FFProbeMetadata(durationSeconds: nil, timecodeStart: nil)
         }
 
-        let data = outputPipe.fileHandleForReading.readDataToEndOfFile()
+        let data = outSink.bytes
         guard
             let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
             let format = object["format"] as? [String: Any]

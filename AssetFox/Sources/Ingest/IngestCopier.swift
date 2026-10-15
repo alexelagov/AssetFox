@@ -213,6 +213,10 @@ struct IngestCopier {
                 }
 
                 let destinationExists = fileManager.fileExists(atPath: job.destinationURL.path)
+                // Overwrite replaces the old file only once the new copy is
+                // complete. It used to delete it first, so a failed copy, a
+                // pulled card, a cancel or a full disk lost both versions.
+                var replacingExisting = false
                 if destinationExists {
                     await progress(buildProgress(
                         copiedFiles: copiedFiles,
@@ -296,11 +300,7 @@ struct IngestCopier {
                             continue
                         case .overwriteExisting:
                             warnings.append("Replacing destination file after checksum mismatch: \(job.relativePath)")
-                            do {
-                                try fileManager.removeItem(at: job.destinationURL)
-                            } catch {
-                                throw IngestFatalJobError.destinationUnavailable("Could not overwrite existing destination file for \(job.relativePath): \(error.localizedDescription)")
-                            }
+                            replacingExisting = true
                         }
                     } catch {
                         let message = "Could not compare existing destination file for \(job.relativePath): \(error.localizedDescription)"
@@ -336,11 +336,7 @@ struct IngestCopier {
                             continue
                         case .overwriteExisting:
                             warnings.append(message)
-                            do {
-                                try fileManager.removeItem(at: job.destinationURL)
-                            } catch {
-                                throw IngestFatalJobError.destinationUnavailable("Could not overwrite existing destination file for \(job.relativePath): \(error.localizedDescription)")
-                            }
+                            replacingExisting = true
                         }
                     }
                 }
@@ -366,7 +362,22 @@ struct IngestCopier {
                 ))
 
                 do {
-                    try fileManager.copyItem(at: job.sourceURL, to: job.destinationURL)
+                    if replacingExisting {
+                        // Staged beside the destination (same volume, so the
+                        // swap is a rename) and swapped in only when whole.
+                        let stagingURL = parentDirectory.appendingPathComponent(
+                            ".assetfox-partial-\(UUID().uuidString)-\(job.destinationURL.lastPathComponent)"
+                        )
+                        do {
+                            try fileManager.copyItem(at: job.sourceURL, to: stagingURL)
+                            _ = try fileManager.replaceItemAt(job.destinationURL, withItemAt: stagingURL)
+                        } catch {
+                            try? fileManager.removeItem(at: stagingURL)
+                            throw error
+                        }
+                    } else {
+                        try fileManager.copyItem(at: job.sourceURL, to: job.destinationURL)
+                    }
                     copiedFiles += 1
                     copiedBytes += job.size
                 } catch {

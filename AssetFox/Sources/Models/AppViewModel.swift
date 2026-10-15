@@ -95,6 +95,8 @@ final class AppViewModel {
                 let entries = try await scanner.quarantine(filesToMove, to: quarantineURL)
                 quarantineLog.append(contentsOf: entries)
                 applyActionResult(groupID: group.id, removedFileIDs: Set(filesToMove.map(\.id)))
+            } catch let partial as QuarantinePartialFailure {
+                recordPartialQuarantine(partial, groupID: group.id, files: filesToMove)
             } catch {
                 phase = .error("Move failed: \(error.localizedDescription)")
             }
@@ -107,18 +109,31 @@ final class AppViewModel {
         let groupsToMove = groups
 
         Task {
-            do {
-                for group in groupsToMove {
-                    let filesToMove = group.selectedFiles
-                    guard !filesToMove.isEmpty else { continue }
+            for group in groupsToMove {
+                let filesToMove = group.selectedFiles
+                guard !filesToMove.isEmpty else { continue }
+                do {
                     let entries = try await scanner.quarantine(filesToMove, to: quarantineURL)
                     quarantineLog.append(contentsOf: entries)
                     applyActionResult(groupID: group.id, removedFileIDs: Set(filesToMove.map(\.id)))
+                } catch let partial as QuarantinePartialFailure {
+                    recordPartialQuarantine(partial, groupID: group.id, files: filesToMove)
+                    return
+                } catch {
+                    phase = .error("Move failed: \(error.localizedDescription)")
+                    return
                 }
-            } catch {
-                phase = .error("Move failed: \(error.localizedDescription)")
             }
         }
+    }
+
+    /// What did move is logged and leaves its group, exactly as on success;
+    /// the error still says the rest did not.
+    private func recordPartialQuarantine(_ partial: QuarantinePartialFailure, groupID: UUID, files: [ScannedFile]) {
+        quarantineLog.append(contentsOf: partial.moved)
+        let movedPaths = Set(partial.moved.map(\.originalPath))
+        applyActionResult(groupID: groupID, removedFileIDs: Set(files.filter { movedPaths.contains($0.path) }.map(\.id)))
+        phase = .error("Move failed: \(partial.localizedDescription)")
     }
 
     func trashGroup(_ group: DuplicateGroup) {
