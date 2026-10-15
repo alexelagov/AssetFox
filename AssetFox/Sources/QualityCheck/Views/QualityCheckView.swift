@@ -14,6 +14,14 @@ struct QualityCheckView: View {
     private let workspaceSpacing = AssetFoxDesign.workspaceSpacing
     private let wideModeExtraWidth: CGFloat = 240
 
+    /// Whether Quality Check is the tool on screen. The root keeps every tool
+    /// alive in a ZStack, so this view (and its key monitor) outlives a switch.
+    private let isActive: Bool
+
+    init(isActive: Bool = true) {
+        self.isActive = isActive
+    }
+
     private var workspaceWidth: CGFloat {
         primaryColumnWidth + sidebarWidth + workspaceSpacing
     }
@@ -48,6 +56,7 @@ struct QualityCheckView: View {
         }
         .background(
             QualityCheckKeyboardShortcutHost(
+                isActive: isActive,
                 onTogglePlayback: {
                     viewModel.togglePlayback()
                 },
@@ -994,6 +1003,7 @@ private struct QualityCheckPlayerView: NSViewRepresentable {
 }
 
 private struct QualityCheckKeyboardShortcutHost: NSViewRepresentable {
+    let isActive: Bool
     let onTogglePlayback: () -> Void
     let onStepBackward: () -> Void
     let onStepForward: () -> Void
@@ -1004,6 +1014,8 @@ private struct QualityCheckKeyboardShortcutHost: NSViewRepresentable {
 
     func makeNSView(context: Context) -> NSView {
         let view = NSView(frame: .zero)
+        context.coordinator.hostView = view
+        context.coordinator.isActive = isActive
         context.coordinator.install(
             onTogglePlayback: onTogglePlayback,
             onStepBackward: onStepBackward,
@@ -1013,6 +1025,8 @@ private struct QualityCheckKeyboardShortcutHost: NSViewRepresentable {
     }
 
     func updateNSView(_ nsView: NSView, context: Context) {
+        context.coordinator.hostView = nsView
+        context.coordinator.isActive = isActive
         context.coordinator.onTogglePlayback = onTogglePlayback
         context.coordinator.onStepBackward = onStepBackward
         context.coordinator.onStepForward = onStepForward
@@ -1022,7 +1036,10 @@ private struct QualityCheckKeyboardShortcutHost: NSViewRepresentable {
         coordinator.remove()
     }
 
+    @MainActor
     final class Coordinator {
+        weak var hostView: NSView?
+        var isActive = false
         var onTogglePlayback: (() -> Void)?
         var onStepBackward: (() -> Void)?
         var onStepForward: (() -> Void)?
@@ -1053,6 +1070,21 @@ private struct QualityCheckKeyboardShortcutHost: NSViewRepresentable {
         }
 
         private func handle(_ event: NSEvent) -> Bool {
+            // The monitor is app-wide and this view stays alive behind other tools,
+            // so claim the keys only while Quality Check is the active tool, in its
+            // own key window, and never from a text field or text view (the field
+            // editor is an NSTextView, a subclass of NSText): Space and the arrows
+            // belong to the text there.
+            guard
+                isActive,
+                let window = hostView?.window,
+                window.isKeyWindow,
+                event.window === window,
+                !(window.firstResponder is NSText)
+            else {
+                return false
+            }
+
             let relevantModifiers = event.modifierFlags.intersection([.command, .option, .control, .shift])
             guard relevantModifiers.isEmpty else { return false }
 
