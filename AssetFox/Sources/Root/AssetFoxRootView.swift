@@ -76,7 +76,7 @@ struct AssetFoxRootView: View {
         case .collectMedia:
             CollectMediaView()
         case .qualityCheck:
-            QualityCheckView()
+            QualityCheckView(isActive: section == selectedSection)
         case .ingest:
             IngestView()
         case .mediaInfo:

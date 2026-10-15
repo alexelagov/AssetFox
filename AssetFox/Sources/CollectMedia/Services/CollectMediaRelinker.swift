@@ -46,6 +46,24 @@ struct CollectMediaRelinker {
             return CollectRelinkResolution(resolvedURL: nil, score: 0, reason: "no filename matches found", topCandidates: [])
         }
 
+        // Equal evidence is no evidence: when several distinct files share the
+        // top score, sort order alone would pick one (duplicate camera names such
+        // as a/clip.mov and b/clip.mov). This also keeps the lowered threshold
+        // (name + extension only, when nothing else is known) from accepting a tie.
+        let tiedPaths = Set(
+            ordered
+                .filter { $0.score == best.score }
+                .map { $0.url.resolvingSymlinksInPath().standardizedFileURL.path }
+        )
+        if tiedPaths.count > 1 {
+            return CollectRelinkResolution(
+                resolvedURL: nil,
+                score: best.score,
+                reason: "ambiguous: \(tiedPaths.count) files tie at score \(best.score) (\(best.reason)); choose manually",
+                topCandidates: Array(ordered.prefix(3))
+            )
+        }
+
         if best.score >= threshold {
             return CollectRelinkResolution(
                 resolvedURL: best.url,
