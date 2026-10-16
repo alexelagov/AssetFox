@@ -100,9 +100,11 @@ let package = Package(
             sources: [
                 "CollectMediaXMLParserSecurityTests.swift",
                 "PixelFormatBitDepthTests.swift",
+                "IngestCopierTests.swift",
                 "Compiled/CollectMediaXMLParser.swift",
                 "Compiled/CollectMediaContracts.swift",
-                "Compiled/PixelFormatBitDepth.swift"
+                "Compiled/PixelFormatBitDepth.swift",
+                "Compiled/IngestCopier.swift"
             ],
             swiftSettings: [
                 .swiftLanguageMode(.v5)
