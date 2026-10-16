@@ -213,9 +213,8 @@ struct IngestCopier {
                 }
 
                 let destinationExists = fileManager.fileExists(atPath: job.destinationURL.path)
-                // Overwrite replaces the old file only once the new copy is
-                // complete. It used to delete it first, so a failed copy, a
-                // pulled card, a cancel or a full disk lost both versions.
+                // Keep the original until the replacement is complete and,
+                // when enabled, its staged bytes have passed verification.
                 var replacingExisting = false
                 if destinationExists {
                     await progress(buildProgress(
@@ -302,6 +301,8 @@ struct IngestCopier {
                             warnings.append("Replacing destination file after checksum mismatch: \(job.relativePath)")
                             replacingExisting = true
                         }
+                    } catch is CancellationError {
+                        throw CancellationError()
                     } catch {
                         let message = "Could not compare existing destination file for \(job.relativePath): \(error.localizedDescription)"
 
@@ -361,25 +362,34 @@ struct IngestCopier {
                     errors: errors
                 ))
 
+                let stagingURL = replacingExisting ? parentDirectory.appendingPathComponent(
+                    ".assetfox-partial-\(UUID().uuidString)-\(job.destinationURL.lastPathComponent)"
+                ) : nil
+                let copiedURL = stagingURL ?? job.destinationURL
+                // Covers copy/hash/publication errors, mismatch, cancellation,
+                // and successful publication (which consumes the staging file).
+                defer {
+                    if let stagingURL {
+                        try? fileManager.removeItem(at: stagingURL)
+                    }
+                }
+                func publishStagedCopy() throws {
+                    try Task.checkCancellation()
+                    if let stagingURL {
+                        _ = try fileManager.replaceItemAt(job.destinationURL, withItemAt: stagingURL)
+                    }
+                }
+
                 do {
-                    if replacingExisting {
-                        // Staged beside the destination (same volume, so the
-                        // swap is a rename) and swapped in only when whole.
-                        let stagingURL = parentDirectory.appendingPathComponent(
-                            ".assetfox-partial-\(UUID().uuidString)-\(job.destinationURL.lastPathComponent)"
-                        )
-                        do {
-                            try fileManager.copyItem(at: job.sourceURL, to: stagingURL)
-                            _ = try fileManager.replaceItemAt(job.destinationURL, withItemAt: stagingURL)
-                        } catch {
-                            try? fileManager.removeItem(at: stagingURL)
-                            throw error
-                        }
-                    } else {
-                        try fileManager.copyItem(at: job.sourceURL, to: job.destinationURL)
+                    try Task.checkCancellation()
+                    try fileManager.copyItem(at: job.sourceURL, to: copiedURL)
+                    if !verificationEnabled {
+                        try publishStagedCopy()
                     }
                     copiedFiles += 1
                     copiedBytes += job.size
+                } catch is CancellationError {
+                    throw CancellationError()
                 } catch {
                     let message = "Copy failed for \(job.relativePath): \(error.localizedDescription)"
                     let record = IngestFileVerificationRecord(
@@ -466,10 +476,13 @@ struct IngestCopier {
 
                 do {
                     let sourceHash = try sha256Hex(for: job.sourceURL)
-                    let destinationHash = try sha256Hex(for: job.destinationURL)
+                    let destinationHash = try sha256Hex(for: copiedURL)
 
                     let record: IngestFileVerificationRecord
                     if sourceHash == destinationHash {
+                        // No suspension between the cancellation check and
+                        // atomic publication of the already verified file.
+                        try publishStagedCopy()
                         verifiedFiles += 1
                         record = IngestFileVerificationRecord(
                             relativePath: job.relativePath,
@@ -518,6 +531,8 @@ struct IngestCopier {
                         warnings: warnings,
                         errors: errors
                     ))
+                } catch is CancellationError {
+                    throw CancellationError()
                 } catch {
                     let message = "Verification failed for \(job.relativePath): \(error.localizedDescription)"
                     let record = IngestFileVerificationRecord(

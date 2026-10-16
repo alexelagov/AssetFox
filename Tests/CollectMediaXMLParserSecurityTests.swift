@@ -10,7 +10,7 @@ struct CollectReportRow: Sendable {
 
 @main
 struct CollectMediaXMLParserSecurityTests {
-    static func main() throws {
+    static func main() async throws {
         try testUnsupportedFCPXMLPathURLsAreSkipped()
         try testSupportedFCPXMLPathURLsAreCollected()
         try testLocalhostAndPercentEncodedPathURLsAreNormalizedBeforeValidation()
@@ -21,6 +21,7 @@ struct CollectMediaXMLParserSecurityTests {
         // This @main doubles as the package's whole test entry point (the
         // header comment in Package.swift says why there is no testTarget).
         PixelFormatBitDepthTests.run()
+        try await IngestCopierTests.run()
     }
 
     private static func testUnsupportedFCPXMLPathURLsAreSkipped() throws {

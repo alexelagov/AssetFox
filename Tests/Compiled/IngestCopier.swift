@@ -1,0 +1,1 @@
+../../AssetFox/Sources/Ingest/IngestCopier.swift
